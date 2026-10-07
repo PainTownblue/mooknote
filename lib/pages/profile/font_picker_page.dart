@@ -159,7 +159,7 @@ class _FontPickerPageState extends State<FontPickerPage> {
         ToastUtil.show(context, '已应用: {name}'.trf({'name': font.displayName}));
         Navigator.pop(context, family);
       } else {
-        ToastUtil.show(context, '字体加载失败'.tr);
+        ToastUtil.show(context, _fontManager.lastError ?? '字体加载失败'.tr);
       }
     } catch (e) {
       if (mounted) ToastUtil.show(context, '加载失败: {e}'.trf({'e': e}));

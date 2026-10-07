@@ -15,6 +15,9 @@ class FontDownloadManager {
   /// 已加载的字体 family 集合（避免重复注册）
   final Set<String> _loadedFonts = {};
 
+  /// 上次加载失败的具体原因（供 UI 提示）
+  String? lastError;
+
   /// 支持的字体文件扩展名
   static const List<String> _fontExtensions = ['.ttf', '.otf', '.ttc'];
 
@@ -70,9 +73,11 @@ class FontDownloadManager {
   ///
   /// 返回加载成功后的 family 名称
   Future<String?> loadFontFile(String filePath, {String? family}) async {
+    lastError = null;
     final file = File(filePath);
     if (!await file.exists()) {
       debugPrint('[FontDownload] 字体文件不存在: $filePath');
+      lastError = '字体文件不存在';
       return null;
     }
 
@@ -86,18 +91,40 @@ class FontDownloadManager {
 
     try {
       final bytes = await file.readAsBytes();
+      // FontLoader 对无效字体数据会静默"成功"（注册后 family 名下无字形，
+      // 界面回退默认字体，表现为"切换了但不变"），必须先校验文件头
+      final invalidReason = _invalidFontReason(bytes);
+      if (invalidReason != null) {
+        lastError = invalidReason;
+        debugPrint('[FontDownload] 字体加载失败: $familyName, $invalidReason (${bytes.length} 字节, 来源: $filePath)');
+        return null;
+      }
       final loader = FontLoader(familyName);
       loader.addFont(Future.value(ByteData.sublistView(bytes)));
       await loader.load();
       _loadedFonts.add(familyName);
-      debugPrint('[FontDownload] 字体加载成功: $familyName (来源: $filePath)');
+      debugPrint('[FontDownload] 字体加载成功: $familyName (${bytes.length} 字节, 来源: $filePath)');
       // 复制到缓存目录，否则重启后 preloadCachedFont 找不到文件
       await _persistFontFile(file, familyName);
       return familyName;
     } catch (e) {
       debugPrint('[FontDownload] 字体加载失败: $familyName, error=$e');
+      lastError = '字体加载失败: $e';
       return null;
     }
+  }
+
+  /// 校验字体文件头魔数，返回失败原因（null = 有效）
+  static String? _invalidFontReason(Uint8List bytes) {
+    if (bytes.length < 4) return '文件损坏（不足 4 字节）';
+    final sig = String.fromCharCodes(bytes.sublist(0, 4));
+    if (sig == 'wOFF' || sig == 'wOF2') {
+      return '这是 WOFF 网页字体，不是真正的 TTF/OTF，请更换字体文件';
+    }
+    final isTtf =
+        bytes[0] == 0x00 && bytes[1] == 0x01 && bytes[2] == 0x00 && bytes[3] == 0x00;
+    if (isTtf || sig == 'OTTO' || sig == 'ttcf' || sig == 'true') return null;
+    return '无法识别的字体格式（文件头不是 TTF/OTF/TTC）';
   }
 
   /// 把字体文件复制到缓存目录（源文件已在缓存目录则跳过）
@@ -107,6 +134,12 @@ class FontDownloadManager {
       final ext = path.extension(source.path).toLowerCase();
       final dest = File(path.join(fontDir.path, '$familyName$ext'));
       if (source.path == dest.path) return;
+      // /sdcard 与 /storage/emulated/0 是同一目录的不同写法，字符串比较拦不住，
+      // 必须用 identical 判同一文件，否则"自己复制自己"会把字体文件截断
+      if (await dest.exists() &&
+          await FileSystemEntity.identical(source.path, dest.path)) {
+        return;
+      }
       await source.copy(dest.path);
       debugPrint('[FontDownload] 字体已缓存: ${dest.path}');
     } catch (e) {

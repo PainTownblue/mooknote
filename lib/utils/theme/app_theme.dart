@@ -27,7 +27,11 @@ class AppTheme {
 
   // 字体配置（空字符串 = 系统默认）
   static String _fontFamily = '';
-  static void setFontFamily(String value) => _fontFamily = value;
+  static void setFontFamily(String value) {
+    if (_fontFamily == value) return;
+    debugPrint('[Theme] 应用字体: ${value.isEmpty ? '默认' : value}');
+    _fontFamily = value;
+  }
   
   // 字重
   static const FontWeight _regular = FontWeight.w400;
