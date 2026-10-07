@@ -254,6 +254,34 @@ class UserPrefs {
   bool get showSidebarCustomModule => prefs.getBool('showSidebarCustomModule') ?? true;
   Future<bool> setShowSidebarCustomModule(bool value) => prefs.setBool('showSidebarCustomModule', value);
 
+  // 我的页 · 工具栏显示开关
+  bool get showProfileToolStroll => prefs.getBool('showProfileToolStroll') ?? true;
+  Future<bool> setShowProfileToolStroll(bool value) => prefs.setBool('showProfileToolStroll', value);
+
+  bool get showProfileToolStats => prefs.getBool('showProfileToolStats') ?? true;
+  Future<bool> setShowProfileToolStats(bool value) => prefs.setBool('showProfileToolStats', value);
+
+  bool get showProfileToolQuickAdd => prefs.getBool('showProfileToolQuickAdd') ?? true;
+  Future<bool> setShowProfileToolQuickAdd(bool value) => prefs.setBool('showProfileToolQuickAdd', value);
+
+  bool get showProfileToolBackup => prefs.getBool('showProfileToolBackup') ?? true;
+  Future<bool> setShowProfileToolBackup(bool value) => prefs.setBool('showProfileToolBackup', value);
+
+  bool get showProfileToolExport => prefs.getBool('showProfileToolExport') ?? true;
+  Future<bool> setShowProfileToolExport(bool value) => prefs.setBool('showProfileToolExport', value);
+
+  bool get showProfileToolBadges => prefs.getBool('showProfileToolBadges') ?? true;
+  Future<bool> setShowProfileToolBadges(bool value) => prefs.setBool('showProfileToolBadges', value);
+
+  bool get showProfileToolSettings => prefs.getBool('showProfileToolSettings') ?? true;
+  Future<bool> setShowProfileToolSettings(bool value) => prefs.setBool('showProfileToolSettings', value);
+
+  bool get showProfileToolRecycleBin => prefs.getBool('showProfileToolRecycleBin') ?? true;
+  Future<bool> setShowProfileToolRecycleBin(bool value) => prefs.setBool('showProfileToolRecycleBin', value);
+
+  bool get showProfileToolFeedback => prefs.getBool('showProfileToolFeedback') ?? true;
+  Future<bool> setShowProfileToolFeedback(bool value) => prefs.setBool('showProfileToolFeedback', value);
+
   /// 笔记布局样式 (0: 列表, 1: 瀑布流, 2: 时间线)
   int get noteLayoutStyle => prefs.getInt('noteLayoutStyle') ?? 0;
   Future<bool> setNoteLayoutStyle(int value) => prefs.setInt('noteLayoutStyle', value);

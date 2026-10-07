@@ -971,52 +971,63 @@ class _ProfilePageState extends State<ProfilePage> with RouteAware {
 
   Widget _buildToolsGrid(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final tools = [
-      (
-        Icons.explore_outlined,
-        '漫步'.tr,
-        () => Navigator.push(
-            context, MaterialPageRoute(builder: (_) => const StrollPage()))
-      ),
-      (
-        Icons.analytics_outlined,
-        '数据统计'.tr,
-        () => Navigator.push(
-            context, MaterialPageRoute(builder: (_) => const StatisticsPage()))
-      ),
-      (
-        Icons.add_circle_outline,
-        '快捷添加'.tr,
-        () => Navigator.push(
-            context, MaterialPageRoute(builder: (_) => const QuickAddPage()))
-      ),
-      (Icons.backup_outlined, '数据备份'.tr, () => _showBackupOptions(context)),
-      (Icons.ios_share_outlined, 'EXCEL导出'.tr, () => _showExportOptions(context)),
-      (
-        Icons.emoji_events_outlined,
-        '成就徽章'.tr,
-        () => Navigator.push(
-            context, MaterialPageRoute(builder: (_) => const BadgesPage()))
-      ),
-      (
-        Icons.settings_outlined,
-        '设置'.tr,
-        () => Navigator.push(
-            context, MaterialPageRoute(builder: (_) => const SettingsPage()))
-      ),
-      (
-        Icons.delete_outline,
-        '回收站'.tr,
-        () => Navigator.push(
-            context, MaterialPageRoute(builder: (_) => const RecycleBinPage()))
-      ),
-      (
-        Icons.feedback_outlined,
-        'BUG反馈'.tr,
-        () => Navigator.push(
-            context, MaterialPageRoute(builder: (_) => const FeedbackPage()))
-      ),
+    final tools = <(IconData, String, VoidCallback)>[
+      if (_userPrefs.showProfileToolStroll)
+        (
+          Icons.explore_outlined,
+          '漫步'.tr,
+          () => Navigator.push(
+              context, MaterialPageRoute(builder: (_) => const StrollPage()))
+        ),
+      if (_userPrefs.showProfileToolStats)
+        (
+          Icons.analytics_outlined,
+          '数据统计'.tr,
+          () => Navigator.push(
+              context, MaterialPageRoute(builder: (_) => const StatisticsPage()))
+        ),
+      if (_userPrefs.showProfileToolQuickAdd)
+        (
+          Icons.add_circle_outline,
+          '快捷添加'.tr,
+          () => Navigator.push(
+              context, MaterialPageRoute(builder: (_) => const QuickAddPage()))
+        ),
+      if (_userPrefs.showProfileToolBackup)
+        (Icons.backup_outlined, '数据备份'.tr, () => _showBackupOptions(context)),
+      if (_userPrefs.showProfileToolExport)
+        (Icons.ios_share_outlined, 'EXCEL导出'.tr, () => _showExportOptions(context)),
+      if (_userPrefs.showProfileToolBadges)
+        (
+          Icons.emoji_events_outlined,
+          '成就徽章'.tr,
+          () => Navigator.push(
+              context, MaterialPageRoute(builder: (_) => const BadgesPage()))
+        ),
+      if (_userPrefs.showProfileToolSettings)
+        (
+          Icons.settings_outlined,
+          '设置'.tr,
+          () => Navigator.push(
+              context, MaterialPageRoute(builder: (_) => const SettingsPage()))
+        ),
+      if (_userPrefs.showProfileToolRecycleBin)
+        (
+          Icons.delete_outline,
+          '回收站'.tr,
+          () => Navigator.push(
+              context, MaterialPageRoute(builder: (_) => const RecycleBinPage()))
+        ),
+      if (_userPrefs.showProfileToolFeedback)
+        (
+          Icons.feedback_outlined,
+          'BUG反馈'.tr,
+          () => Navigator.push(
+              context, MaterialPageRoute(builder: (_) => const FeedbackPage()))
+        ),
     ];
+
+    if (tools.isEmpty) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),

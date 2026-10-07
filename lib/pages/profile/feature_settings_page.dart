@@ -41,6 +41,17 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
   bool _showCustomModule = true;
   bool _showQuickActions = true;
 
+  // 我的页 · 工具栏
+  bool _showToolStroll = true;
+  bool _showToolStats = true;
+  bool _showToolQuickAdd = true;
+  bool _showToolBackup = true;
+  bool _showToolExport = true;
+  bool _showToolBadges = true;
+  bool _showToolSettings = true;
+  bool _showToolRecycleBin = true;
+  bool _showToolFeedback = true;
+
   @override
   void initState() {
     super.initState();
@@ -67,6 +78,15 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
       _showTags = _userPrefs.showSidebarTags;
       _showCustomModule = _userPrefs.showSidebarCustomModule;
       _showQuickActions = _userPrefs.showSidebarQuickActions;
+      _showToolStroll = _userPrefs.showProfileToolStroll;
+      _showToolStats = _userPrefs.showProfileToolStats;
+      _showToolQuickAdd = _userPrefs.showProfileToolQuickAdd;
+      _showToolBackup = _userPrefs.showProfileToolBackup;
+      _showToolExport = _userPrefs.showProfileToolExport;
+      _showToolBadges = _userPrefs.showProfileToolBadges;
+      _showToolSettings = _userPrefs.showProfileToolSettings;
+      _showToolRecycleBin = _userPrefs.showProfileToolRecycleBin;
+      _showToolFeedback = _userPrefs.showProfileToolFeedback;
     });
   }
 
@@ -377,6 +397,94 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
               '自定义分类模块的入口与管理'.tr, _showCustomModule, (v) async {
             await _userPrefs.setShowSidebarCustomModule(v);
             setState(() => _showCustomModule = v);
+          }),
+
+          // ── 我的页：工具栏 ──
+          _buildSectionHeader('我的页 · 工具栏'.tr),
+          _buildSwitchItem(Icons.explore_outlined, '漫步'.tr, '随机发现内容'.tr, _showToolStroll,
+              (v) async {
+            await _userPrefs.setShowProfileToolStroll(v);
+            setState(() => _showToolStroll = v);
+          }),
+          Divider(
+              height: 0.5,
+              indent: 24,
+              endIndent: 24,
+              color: colors.outlineVariant),
+          _buildSwitchItem(Icons.analytics_outlined, '数据统计'.tr, '查看数据统计与分析'.tr, _showToolStats,
+              (v) async {
+            await _userPrefs.setShowProfileToolStats(v);
+            setState(() => _showToolStats = v);
+          }),
+          Divider(
+              height: 0.5,
+              indent: 24,
+              endIndent: 24,
+              color: colors.outlineVariant),
+          _buildSwitchItem(Icons.add_circle_outline, '快捷添加'.tr, '快速新建记录'.tr, _showToolQuickAdd,
+              (v) async {
+            await _userPrefs.setShowProfileToolQuickAdd(v);
+            setState(() => _showToolQuickAdd = v);
+          }),
+          Divider(
+              height: 0.5,
+              indent: 24,
+              endIndent: 24,
+              color: colors.outlineVariant),
+          _buildSwitchItem(Icons.backup_outlined, '数据备份'.tr, '本地备份与云备份'.tr, _showToolBackup,
+              (v) async {
+            await _userPrefs.setShowProfileToolBackup(v);
+            setState(() => _showToolBackup = v);
+          }),
+          Divider(
+              height: 0.5,
+              indent: 24,
+              endIndent: 24,
+              color: colors.outlineVariant),
+          _buildSwitchItem(Icons.ios_share_outlined, 'EXCEL导出'.tr, '导出数据为 Excel'.tr, _showToolExport,
+              (v) async {
+            await _userPrefs.setShowProfileToolExport(v);
+            setState(() => _showToolExport = v);
+          }),
+          Divider(
+              height: 0.5,
+              indent: 24,
+              endIndent: 24,
+              color: colors.outlineVariant),
+          _buildSwitchItem(Icons.emoji_events_outlined, '成就徽章'.tr, '查看已获得的徽章'.tr, _showToolBadges,
+              (v) async {
+            await _userPrefs.setShowProfileToolBadges(v);
+            setState(() => _showToolBadges = v);
+          }),
+          Divider(
+              height: 0.5,
+              indent: 24,
+              endIndent: 24,
+              color: colors.outlineVariant),
+          _buildSwitchItem(Icons.settings_outlined, '设置'.tr, '应用设置入口'.tr, _showToolSettings,
+              (v) async {
+            await _userPrefs.setShowProfileToolSettings(v);
+            setState(() => _showToolSettings = v);
+          }),
+          Divider(
+              height: 0.5,
+              indent: 24,
+              endIndent: 24,
+              color: colors.outlineVariant),
+          _buildSwitchItem(Icons.delete_outline, '回收站'.tr, '管理已删除的记录'.tr, _showToolRecycleBin,
+              (v) async {
+            await _userPrefs.setShowProfileToolRecycleBin(v);
+            setState(() => _showToolRecycleBin = v);
+          }),
+          Divider(
+              height: 0.5,
+              indent: 24,
+              endIndent: 24,
+              color: colors.outlineVariant),
+          _buildSwitchItem(Icons.feedback_outlined, 'BUG反馈'.tr, '提交问题与建议'.tr, _showToolFeedback,
+              (v) async {
+            await _userPrefs.setShowProfileToolFeedback(v);
+            setState(() => _showToolFeedback = v);
           }),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
