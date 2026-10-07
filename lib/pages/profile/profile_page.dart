@@ -1,6 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:provider/provider.dart';
@@ -24,6 +24,7 @@ import '../explore/stroll_page.dart';
 import '../sync/cloud_sync_page.dart';
 import 'settings_page.dart';
 import 'badges_page.dart';
+import 'feedback_page.dart';
 import 'watchlist_page.dart';
 import '../quick_add/quick_add_page.dart';
 import '../../widgets/app_overlay.dart';
@@ -1009,7 +1010,12 @@ class _ProfilePageState extends State<ProfilePage> with RouteAware {
         () => Navigator.push(
             context, MaterialPageRoute(builder: (_) => const RecycleBinPage()))
       ),
-      (Icons.feedback_outlined, 'BUG反馈'.tr, () => _showFeedbackDialog(context)),
+      (
+        Icons.feedback_outlined,
+        'BUG反馈'.tr,
+        () => Navigator.push(
+            context, MaterialPageRoute(builder: (_) => const FeedbackPage()))
+      ),
     ];
 
     return Padding(
@@ -1086,164 +1092,6 @@ class _ProfilePageState extends State<ProfilePage> with RouteAware {
     }
     if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}k';
     return count.toString();
-  }
-
-  // ─── 反馈弹窗 ────────────────────────────────────────────────────────
-
-  void _showFeedbackDialog(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    const email = 'dellevin99@gmail.com';
-    appModalBottomSheet(
-      context: context,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(top: 12, bottom: 16),
-              decoration: BoxDecoration(
-                  color: colors.onSurface.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(2))),
-          Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('反馈'.tr,
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: colors.onSurface)))),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: colors.surfaceContainerHighest.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.email_outlined,
-                      size: 20, color: colors.primary.withValues(alpha: 0.8)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('作者邮箱'.tr,
-                            style: TextStyle(
-                                fontSize: 12,
-                                color:
-                                    colors.onSurface.withValues(alpha: 0.5))),
-                        const SizedBox(height: 2),
-                        Text(email,
-                            style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: colors.onSurface)),
-                      ],
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Clipboard.setData(const ClipboardData(text: email));
-                      ToastUtil.show(context, '已复制到剪贴板'.tr);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: colors.primary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.copy, size: 14, color: colors.primary),
-                          const SizedBox(width: 4),
-                          Text('复制'.tr,
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: colors.primary,
-                                  fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: colors.surfaceContainerHighest.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.group_outlined,
-                      size: 20, color: colors.primary.withValues(alpha: 0.8)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('QQ 群'.tr,
-                            style: TextStyle(
-                                fontSize: 12,
-                                color:
-                                    colors.onSurface.withValues(alpha: 0.5))),
-                        const SizedBox(height: 2),
-                        Text('1087203310',
-                            style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: colors.onSurface)),
-                      ],
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Clipboard.setData(const ClipboardData(text: '1087203310'));
-                      ToastUtil.show(context, '已复制到剪贴板'.tr);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: colors.primary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.copy, size: 14, color: colors.primary),
-                          const SizedBox(width: 4),
-                          Text('复制'.tr,
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: colors.primary,
-                                  fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ]),
-      ),
-    );
   }
 
   // ─── 头像 ────────────────────────────────────────────────────────────

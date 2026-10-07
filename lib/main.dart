@@ -20,6 +20,7 @@ import 'utils/user_prefs.dart';
 import 'services/changelog_service.dart';
 import 'services/badge_service.dart';
 import 'services/log_service.dart';
+import 'services/report_service.dart';
 import 'services/usage_stats_service.dart';
 import 'services/sync/backup_service.dart';
 import 'services/sync/webdav_service.dart';
@@ -49,6 +50,8 @@ void main() async {
     });
   }
   await UserPrefs.init();
+  // 崩溃自动上报（匿名，与调试日志开关无关）
+  ReportService.instance.installCrashHook();
   // 调试模式：接管全局日志输出
   if (UserPrefs().debugMode) {
     LogService.instance.install();
@@ -123,7 +126,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    widget.appProvider.loadThemeMode();
+    unawaited(widget.appProvider.loadThemeMode());
     widget.appProvider.addListener(_onThemeChanged);
     _startAutoBackupTimer();
     _startIncAutoSyncTimer();

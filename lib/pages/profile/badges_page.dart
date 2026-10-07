@@ -21,13 +21,15 @@ class _BadgesPageState extends State<BadgesPage> {
   bool _loading = true;
   bool _offline = false;
 
-  /// 分组主题色（按指标归类）
+  /// 分组主题色（key 为 labelOf 返回的分组名）
   static const _groupColors = <String, Color>{
-    '特殊成就': Color(0xFFFFB300),
-    '观影成就': Color(0xFF5C6BC0),
-    '阅读成就': Color(0xFF66BB6A),
-    '游戏成就': Color(0xFFAB47BC),
-    '评论成就': Color(0xFF26A69A),
+    '影视': Color(0xFF5C6BC0),
+    '阅读': Color(0xFF66BB6A),
+    '游戏': Color(0xFFAB47BC),
+    '评论': Color(0xFF26A69A),
+    '海报': Color(0xFFEC407A),
+    '角色': Color(0xFF8D6E63),
+    '其他': Color(0xFFFFB300),
   };
 
   @override
@@ -78,19 +80,30 @@ class _BadgesPageState extends State<BadgesPage> {
 
   /// 按指标分组（保持 defs 原有顺序）
   Map<String, List<BadgeDef>> get _groups {
+    // 兼容标准分组值（movies 等）与旧版指标值（movie_count 等）
     String labelOf(String metric) {
       switch (metric) {
-        case 'first_use':
-        case 'streak_days':
-          return '其他';
+        case 'movies':
         case 'movie_count':
-          return '观影';
+          return '影视';
+        case 'books':
         case 'book_count':
           return '阅读';
+        case 'games':
         case 'game_count':
           return '游戏';
-        default:
+        case 'comments':
+        case 'review':
+        case 'movie_review_count':
+        case 'book_review_count':
+        case 'game_review_count':
           return '评论';
+        case 'photos':
+          return '海报';
+        case 'roles':
+          return '角色';
+        default:
+          return '其他';
       }
     }
 

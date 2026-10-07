@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../../l10n/app_strings.dart';
 import '../../services/log_service.dart';
+import '../../services/report_service.dart';
 import '../../utils/platform_utils.dart';
 import '../../utils/toast_util.dart';
 
@@ -22,6 +23,7 @@ class _DebugLogPageState extends State<DebugLogPage> {
   Timer? _refreshTimer;
   DateTime? _startTime;
   DateTime? _endTime;
+  bool _uploading = false;
   /// 选中的模块（null = 全部）
   Set<String>? _selectedModules;
 
@@ -129,6 +131,33 @@ class _DebugLogPageState extends State<DebugLogPage> {
     } catch (e) {
       if (mounted) ToastUtil.show(context, '保存失败: $e'.tr);
     }
+  }
+
+  /// 提交当前（筛选后）日志给开发者：从最新往回装填，服务端限长 8000，
+  /// 保证最近的日志不丢；首行带 [用户日志] 标记，后台聚合成同一分组
+  Future<void> _uploadLogs() async {
+    final logs = _filtered.reversed.toList(); // 时间正序
+    if (logs.isEmpty) {
+      ToastUtil.show(context, '没有可提交的日志'.tr);
+      return;
+    }
+    setState(() => _uploading = true);
+    const budget = 7800;
+    final lines = <String>[];
+    var len = 0;
+    for (final e in logs.reversed) {
+      final line = e.format();
+      if (len + line.length + 1 > budget) break;
+      lines.add(line);
+      len += line.length + 1;
+    }
+    final content = '[用户日志] 设备主动提交，共 ${lines.length} 条\n'
+        '${lines.reversed.join('\n')}';
+    final ok = await ReportService.instance.reportLogs(content);
+    if (!mounted) return;
+    setState(() => _uploading = false);
+    ToastUtil.show(
+        context, ok ? '日志已提交，感谢协助'.tr : '提交失败，请稍后重试'.tr);
   }
 
   Future<void> _clearLogs() async {
@@ -307,6 +336,16 @@ class _DebugLogPageState extends State<DebugLogPage> {
             icon: const Icon(Icons.refresh, size: 20),
             tooltip: '刷新'.tr,
             onPressed: () => setState(() {}),
+          ),
+          IconButton(
+            icon: _uploading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.cloud_upload_outlined, size: 20),
+            tooltip: '提交日志给开发者'.tr,
+            onPressed: _uploading ? null : _uploadLogs,
           ),
           IconButton(
             icon: const Icon(Icons.save_alt, size: 20),

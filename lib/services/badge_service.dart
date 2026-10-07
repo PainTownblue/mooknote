@@ -13,7 +13,7 @@ class BadgeDef {
   final String name;
   final String desc;
   final String icon; // SVG 代码
-  final String metric; // 分组类别（观影/阅读/游戏/评论/其他）
+  final String metric; // 分组类别（movies/books/games/comments/photos/roles/others，兼容旧版指标值）
   final String ruleSql;
   final int threshold;
 

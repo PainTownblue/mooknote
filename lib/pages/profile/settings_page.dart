@@ -17,7 +17,6 @@ import '../settings/legal_page.dart';
 import '../settings/debug_log_page.dart';
 import '../settings/prefs_editor_page.dart';
 import '../settings/db_viewer_page.dart';
-import '../settings/crash_log_page.dart';
 import 'app_icon_picker_page.dart';
 import 'feature_settings_page.dart';
 import 'layout_settings_page.dart';
@@ -231,23 +230,6 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const DbViewerPage())),
             ),
-            Divider(
-                height: 0.5,
-                indent: 24,
-                endIndent: 24,
-                color: colors.outlineVariant),
-            _buildNavigationItem(
-              icon: Icons.error_outline,
-              title: '崩溃日志'.tr,
-              subtitle: '带堆栈的异常记录，与普通日志分开'.tr,
-              onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const CrashLogPage())),
-            ),
-            Divider(
-                height: 0.5,
-                indent: 24,
-                endIndent: 24,
-                color: colors.outlineVariant),
           ],
           _buildSectionHeader('数据管理'.tr),
           _buildActionItem(

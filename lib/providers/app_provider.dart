@@ -731,7 +731,7 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void loadThemeMode() {
+  Future<void> loadThemeMode() async {
     final prefs = UserPrefs();
     switch (prefs.themeMode) {
       case 1:
@@ -749,13 +749,13 @@ class AppProvider extends ChangeNotifier {
     _languageMode = prefs.languageMode;
     AppStrings.isEnglish = _languageMode == 2;
     AppTheme.setFontFamily(_fontFamily);
-    // 异步预加载已缓存的字体（不阻塞 UI），注册完成后刷新页面让文本用上新字体
+    // 预加载已缓存的字体：必须先完成注册再 notifyListeners，
+    // 否则 Selector 的重建发生在字体注册前（渲染成回退字体），
+    // 注册完成后的二次通知又会因选中记录无变化被 Selector 吞掉
     if (_fontFamily.isNotEmpty) {
       debugPrint('[字体] 启动恢复字体: $_fontFamily');
-      FontDownloadManager().preloadCachedFont(_fontFamily).then((ok) {
-        debugPrint('[字体] 预加载${ok ? '成功' : '失败'}: $_fontFamily');
-        if (ok) notifyListeners();
-      });
+      final ok = await FontDownloadManager().preloadCachedFont(_fontFamily);
+      debugPrint('[字体] 预加载${ok ? '成功' : '失败'}: $_fontFamily');
     }
     notifyListeners();
   }

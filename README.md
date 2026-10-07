@@ -76,10 +76,10 @@
 ### 通用功能
 
 - 全局搜索（影视 / 书籍 / 笔记 / 游戏）+ 在线搜索
-- 快捷添加（悬浮入口，一键添加各类媒体）
+- 快捷添加（一键添加各类媒体）
 - 详情页样式切换（标准 / 毛玻璃层叠 / 浅色极简 / 豆瓣风格），详情页模块支持排序与显隐设置
 - 标签管理与分类（影视类型 / 书籍类型 / 游戏类型 / 笔记标签统一管理，支持重命名 / 删除 / 隐藏）
-- 数据统计与可视化图表（总览、状态分布、类型偏好、导演 / 作者 Top 5、月度活动日历、星期分布、累计增长曲线）
+- 数据统计与可视化图表
 - 媒体日历（按日期查看影视 / 书籍添加记录，展示封面缩略图）
 - 图片画廊（全应用图片 / 海报 / 截图统一浏览，支持自定义图片显示名称）
 - 人物列表（汇总所有导演、编剧、演员、作者，关联其作品）
@@ -105,7 +105,9 @@
 ## 多平台支持
 
 - **Android** — 主要支持平台
+- **Android Pad** — 平板自适应布局：常驻侧边栏 + NavigationRail，宽屏时列表-详情并排显示
 - **Windows** — 桌面端完整支持：隐藏原生标题栏、FFI 本地数据库、宽屏主从布局适配
+- **Linux** — 桌面端支持：FFI 本地数据库，与 Windows 共用桌面布局
 
 ## 技术栈
 
@@ -113,12 +115,12 @@
 | :--- | :--- |
 | 框架 | Flutter 3.5+ / Dart 3.5+ |
 | 状态管理 | Provider（单一 `AppProvider` ChangeNotifier） |
-| 本地存储 | sqflite（`mooknote.db`，已迭代至 v49 迁移链；Windows 端走 sqflite_common_ffi） |
+| 本地存储 | sqflite（`mooknote.db`，已迭代至 v49 迁移链；Windows / Linux 端走 sqflite_common_ffi） |
 | 远程同步 | 自建 Flask 服务端 + WebDAV |
 | 图表 | fl_chart |
 | Markdown | flutter_markdown_plus |
 | WebView | flutter_inappwebview（豆瓣网页抓取） |
-| 视频播放 | media_kit（预告片播放） |
+| 视频播放 | media_kit（视频播放） |
 | 数据导出 | excel / archive（Excel 与 zip 备份） |
 | 桌面适配 | window_manager |
 | 动态取色 | dynamic_color（Android 12+ Monet） |
@@ -138,7 +140,7 @@ lib/
 ├── widgets/                 # 共享组件（列表项、编辑器、导航、抽屉等）
 ├── utils/                   # 工具（路由、主题、偏好、Excel 导出等）
 └── l10n/                    # 英文文案资源
-server/                      # Python Flask 服务端（认证 / 同步 / 管理 API）
+server/                      # Python Flask 服务端（ 同步 / 管理 API）
 ```
 
 ## 数据存储
@@ -170,9 +172,11 @@ flutter devices
 # 运行
 flutter run -d emulator-5554
 
-flutter run -d  windows
+flutter run -d windows
+
+flutter run -d linux
 ```
- 
+
 如果 `pub get` 失败，可尝试设置国内镜像：
 
 ```powershell
@@ -201,7 +205,6 @@ flutter build apk --release --split-per-abi
 flutter build windows --release
 # 构建linux版本
 flutter build linux --release
-
 # 只构建 arm64-v8a
 flutter build apk --release --target-platform android-arm64
 # 构建 App Bundle（Google Play）

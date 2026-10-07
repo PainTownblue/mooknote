@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:logging/logging.dart';
 
+import 'report_service.dart';
+
 /// 一条日志记录
 class LogEntry {
   final DateTime time;
@@ -104,6 +106,8 @@ class LogService {
     if (errors.length > _maxErrors) {
       errors.removeRange(0, errors.length - _maxErrors);
     }
+    // 匿名崩溃上报（按签名去重，静默失败）
+    ReportService.instance.reportCrash(message);
   }
 
   void clear() => entries.clear();
