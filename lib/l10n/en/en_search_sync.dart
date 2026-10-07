@@ -136,6 +136,38 @@ const Map<String, String> enSearchSync = {
   '已更新「{name}」': 'Updated "{name}"',
   '已添加「{name}」': 'Added "{name}"',
 
+  // ── Bangumi 搜索 ──
+  'Bangumi 搜索': 'Bangumi Search',
+  '使用 Bangumi API 搜索动画、书籍和游戏':
+      'Search anime, books and games via Bangumi API',
+  '请输入 Access Token': 'Enter an Access Token',
+  '网络不通，无法连接 Bangumi 服务器，未保存':
+      'Network unreachable, cannot connect to Bangumi server, not saved',
+  '已清除 Bangumi Token': 'Bangumi Token cleared',
+  'Bangumi 搜索已开启': 'Bangumi search is enabled',
+  '填写 Access Token 并测试成功后开启':
+      'Enter an Access Token and pass the test to enable',
+  'Bangumi Access Token': 'Bangumi Access Token',
+  '输入 Access Token': 'Enter Access Token',
+  '在 bgm.tv 登录后，于 设置 → 开发者 → Access Token 页面创建令牌':
+      'Log in at bgm.tv, then create a token under Settings → Developer → Access Token',
+  '支持搜索动画、书籍、游戏、三次元条目':
+      'Supports searching anime, book, game and live-action entries',
+  '需要设备能正常访问 Bangumi 服务器':
+      'Requires network access to Bangumi servers',
+  'Token 仅保存在本地，用于搜索条目信息':
+      'Token is stored locally only, used to search entry information',
+  '请先在设置中配置 Bangumi Token':
+      'Configure the Bangumi Token in Settings first',
+  '搜索动画、书籍、游戏...': 'Search anime, books, games...',
+  '搜索你想找的动画、书籍或游戏': 'Search for anime, books or games',
+  '动画': 'Anime',
+  '三次元': 'Live-action',
+  '条目详情': 'Entry Details',
+  '话': 'ep',
+  '卷': 'vol',
+  '信息': 'Info',
+
   // ── 在线影视详情 ──
   '加载失败': 'Load failed',
   '网络错误': 'Network error',

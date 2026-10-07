@@ -4,8 +4,9 @@ import '../../l10n/app_strings.dart';
 import 'search_page.dart';
 import 'online_search_page.dart';
 import 'tmdb_search_page.dart';
+import 'bangumi_search_page.dart';
 
-/// 统一搜索页 —— 本地 / 增强 / TMDB 切换
+/// 统一搜索页 —— 本地 / 增强 / TMDB / Bangumi 切换
 class SearchHubPage extends StatefulWidget {
   const SearchHubPage({super.key});
 
@@ -18,9 +19,11 @@ class _SearchHubPageState extends State<SearchHubPage> {
 
   bool get _enhancedOn => UserPrefs().enhancedSearchEnabled;
   bool get _tmdbOn => UserPrefs().tmdbApiToken.isNotEmpty;
+  bool get _bgmOn => UserPrefs().bangumiAccessToken.isNotEmpty;
 
-  /// 可用模式: 0=本地, 1=增强, 2=TMDB
-  List<int> get _modes => [0, if (_enhancedOn) 1, if (_tmdbOn) 2];
+  /// 可用模式: 0=本地, 1=增强, 2=TMDB, 3=Bangumi
+  List<int> get _modes =>
+      [0, if (_enhancedOn) 1, if (_tmdbOn) 2, if (_bgmOn) 3];
 
   @override
   void initState() {
@@ -44,6 +47,7 @@ class _SearchHubPageState extends State<SearchHubPage> {
       const SearchPageBody(),
       if (_enhancedOn) const OnlineSearchPageBody(),
       if (_tmdbOn) const TmdbSearchPageBody(),
+      if (_bgmOn) const BangumiSearchPageBody(),
     ];
     return Scaffold(
       appBar: AppBar(
@@ -69,6 +73,8 @@ class _SearchHubPageState extends State<SearchHubPage> {
           return '增强'.tr;
         case 2:
           return 'TMDB';
+        case 3:
+          return 'Bangumi';
         default:
           return '本地'.tr;
       }

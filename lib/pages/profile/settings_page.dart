@@ -13,6 +13,7 @@ import '../../services/media_scan_channel.dart';
 import '../../services/log_service.dart';
 import '../online_search/enhanced_search_settings_page.dart';
 import '../online_search/tmdb_settings_page.dart';
+import '../online_search/bangumi_settings_page.dart';
 import '../settings/legal_page.dart';
 import '../settings/debug_log_page.dart';
 import '../settings/prefs_editor_page.dart';
@@ -166,6 +167,20 @@ class _SettingsPageState extends State<SettingsPage> {
             onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const TmdbSettingsPage())),
+          ),
+          Divider(
+              height: 0.5,
+              indent: 24,
+              endIndent: 24,
+              color: colors.outlineVariant),
+          _buildActionItem(
+            icon: Icons.explore_outlined,
+            title: 'Bangumi 搜索'.tr,
+            subtitle: '使用 Bangumi API 搜索动画、书籍和游戏'.tr,
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const BangumiSettingsPage())),
           ),
           Divider(
               height: 0.5,

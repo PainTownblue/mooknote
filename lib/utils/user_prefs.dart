@@ -494,7 +494,13 @@ class UserPrefs {
   String get tmdbAuthType => prefs.getString('tmdbAuthType') ?? 'bearer';
   Future<bool> setTmdbAuthType(String value) => prefs.setString('tmdbAuthType', value);
 
-  /// 搜索页模式: 0=本地, 1=增强, 2=TMDB（从旧版 lastSearchOnline 迁移）
+  // ========== Bangumi 搜索 ==========
+
+  /// Bangumi Access Token
+  String get bangumiAccessToken => prefs.getString('bangumiAccessToken') ?? '';
+  Future<bool> setBangumiAccessToken(String value) => prefs.setString('bangumiAccessToken', value);
+
+  /// 搜索页模式: 0=本地, 1=增强, 2=TMDB, 3=Bangumi（从旧版 lastSearchOnline 迁移）
   int get lastSearchMode =>
       prefs.getInt('lastSearchMode') ?? (lastSearchOnline ? 1 : 0);
   Future<bool> setLastSearchMode(int value) => prefs.setInt('lastSearchMode', value);
