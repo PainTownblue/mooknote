@@ -683,6 +683,7 @@ class _WebDAVSyncPageState extends State<WebDAVSyncPage> {
 
     if (confirmed == true) {
       await WebDAVService.instance.clearConfig();
+      if (!mounted) return;
       setState(() {
         _urlController.clear();
         _usernameController.clear();

@@ -305,8 +305,11 @@ class DatabaseHelper {
       ''');
     }
     if (oldVersion < 32) {
-      // games表添加summary字段
-      await db.execute('ALTER TABLE games ADD COLUMN summary TEXT');
+      // games表添加summary字段（检查列存在性，迁移中断重试时不重复加列）
+      final gameCols = await db.rawQuery('PRAGMA table_info(games)');
+      if (!gameCols.any((col) => col['name'] == 'summary')) {
+        await db.execute('ALTER TABLE games ADD COLUMN summary TEXT');
+      }
     }
     if (oldVersion < 34) {
       // 确保games表summary字段存在
@@ -457,9 +460,12 @@ class DatabaseHelper {
     }
     if (oldVersion < 44) {
       // 墓碑增加推送标记：推送后保留记录，待压实嵌入 manifest 后才清除
-      await db.execute(
-        'ALTER TABLE sync_tombstones ADD COLUMN pushed INTEGER NOT NULL DEFAULT 0',
-      );
+      final tombCols = await db.rawQuery('PRAGMA table_info(sync_tombstones)');
+      if (!tombCols.any((col) => col['name'] == 'pushed')) {
+        await db.execute(
+          'ALTER TABLE sync_tombstones ADD COLUMN pushed INTEGER NOT NULL DEFAULT 0',
+        );
+      }
     }
     if (oldVersion < 45) {
       // 影评表添加影评日期字段（用户可选，与创建日期区分）

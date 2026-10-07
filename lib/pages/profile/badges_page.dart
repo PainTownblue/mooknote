@@ -421,10 +421,10 @@ class _BadgesPageState extends State<BadgesPage> {
           final floated = prefs.badgeFloatFor('home').containsKey(badge.slug) ||
               prefs.badgeFloatFor('profile').containsKey(badge.slug);
 
-          /// 默认位置：右上角，按该页已有数量纵向错开
+          /// 默认位置：屏幕中央，按该页已有数量纵向错开
           ({double x, double y}) defaultPos(
                   Map<String, ({double x, double y})> map) =>
-              (x: 0.85, y: 0.02 + (map.length % 6) * 0.08);
+              (x: 0.5, y: 0.4 + (map.length % 6) * 0.08);
 
           /// 切换某个页面的浮动显示（两页位置各自独立）
           Future<void> togglePage(String page) async {

@@ -195,45 +195,55 @@ class AppProvider extends ChangeNotifier {
   Future<void> initDatabase() async {
     debugPrint('[AppProvider] initDatabase');
     // 独立加载每个 DAO，避免一个失败导致全部中断
+    final failedTables = <String>[];
     try {
       _movies = await _movieDao.getAllMovies(sortMode: UserPrefs().effectiveMovieSortMode);
     } catch (e) {
       debugPrint('[AppProvider] 加载影视数据失败: $e');
+      failedTables.add('movies');
     }
     try {
       _books = await _bookDao.getAllBooks(sortMode: UserPrefs().effectiveBookSortMode);
     } catch (e) {
       debugPrint('[AppProvider] 加载书籍数据失败: $e');
+      failedTables.add('books');
     }
     try {
       _notes = await _noteDao.getAllNotes(sortMode: UserPrefs().noteSortMode);
     } catch (e) {
       debugPrint('[AppProvider] 加载笔记数据失败: $e');
+      failedTables.add('notes');
     }
     try {
       _games = await _gameDao.getAllGames(sortMode: UserPrefs().effectiveGameSortMode);
     } catch (e) {
       debugPrint('[AppProvider] 加载游戏数据失败: $e');
+      failedTables.add('games');
     }
     try {
       _people = await _personDao.getAllPeople();
     } catch (e) {
       debugPrint('[AppProvider] 加载人物数据失败: $e');
+      failedTables.add('people');
     }
     try {
       _customModules = await _customModuleDao.getAllModules();
     } catch (e) {
       debugPrint('[AppProvider] 加载自定义模块失败: $e');
+      failedTables.add('custom_modules');
     }
-    // 检查是否全部失败
-    if (_movies.isEmpty && _books.isEmpty && _notes.isEmpty && _games.isEmpty) {
-      // 可能是初始化全部失败（非空数据库场景下不合理），标记以便 UI 提示
+    // 加载失败的表若实际有数据，说明是初始化失败而非空库，标记以便 UI 提示重试
+    for (final table in failedTables) {
       try {
         final db = await DatabaseHelper.instance.database;
-        final count = (await db.rawQuery('SELECT COUNT(*) as cnt FROM movies')).first['cnt'] as int;
-        if (count > 0) _dbInitFailed = true;
+        final count = (await db.rawQuery('SELECT COUNT(*) as cnt FROM $table')).first['cnt'] as int;
+        if (count > 0) {
+          _dbInitFailed = true;
+          break;
+        }
       } catch (_) {
         _dbInitFailed = true;
+        break;
       }
     }
     debugPrint('[AppProvider] 本地数据: movies=${_movies.length}, books=${_books.length}, notes=${_notes.length}, games=${_games.length}, people=${_people.length}');
@@ -1493,22 +1503,69 @@ class AppProvider extends ChangeNotifier {
     final db = await DatabaseHelper.instance.database;
 
     // 收集将被级联删除的评价ID（评价图片在 reviews/{reviewId} 目录，需单独清理）
-    final reviewIds = <String>{
-      ...deletedMovieReviews.map((r) => r.id),
-      ...deletedBookReviews.map((r) => r.id),
-      ...deletedGameReviews.map((r) => r.id),
-    };
+    final movieReviewIds = <String>{...deletedMovieReviews.map((r) => r.id)};
+    final bookReviewIds = <String>{...deletedBookReviews.map((r) => r.id)};
+    final gameReviewIds = <String>{...deletedGameReviews.map((r) => r.id)};
     for (final id in movieIds) {
       final rows = await db.query('movie_reviews', columns: ['id'], where: 'movie_id = ?', whereArgs: [id]);
-      reviewIds.addAll(rows.map((r) => r['id'] as String));
+      movieReviewIds.addAll(rows.map((r) => r['id'] as String));
     }
     for (final id in bookIds) {
       final rows = await db.query('book_reviews', columns: ['id'], where: 'book_id = ?', whereArgs: [id]);
-      reviewIds.addAll(rows.map((r) => r['id'] as String));
+      bookReviewIds.addAll(rows.map((r) => r['id'] as String));
     }
     for (final id in gameIds) {
       final rows = await db.query('game_reviews', columns: ['id'], where: 'game_id = ?', whereArgs: [id]);
-      reviewIds.addAll(rows.map((r) => r['id'] as String));
+      gameReviewIds.addAll(rows.map((r) => r['id'] as String));
+    }
+    final reviewIds = <String>{...movieReviewIds, ...bookReviewIds, ...gameReviewIds};
+
+    // 收集将被级联删除的摘抄ID（随书籍硬删一并清除，需记录墓碑）
+    final excerptIds = <String>{...deletedBookExcerpts.map((e) => e.id)};
+    for (final id in bookIds) {
+      final rows = await db.query('book_excerpts', columns: ['id'], where: 'book_id = ?', whereArgs: [id]);
+      excerptIds.addAll(rows.map((r) => r['id'] as String));
+    }
+
+    // 记录同步墓碑，保证其他设备能收到这些彻底删除（组表随父实体墓碑覆盖，无需单独记录）
+    for (final id in movieIds) {
+      await SyncTombstones.record('movies', id);
+    }
+    for (final id in bookIds) {
+      await SyncTombstones.record('books', id);
+    }
+    for (final id in noteIds) {
+      await SyncTombstones.record('notes', id);
+    }
+    for (final id in gameIds) {
+      await SyncTombstones.record('games', id);
+    }
+    for (final id in movieReviewIds) {
+      await SyncTombstones.record('movie_reviews', id);
+    }
+    for (final id in bookReviewIds) {
+      await SyncTombstones.record('book_reviews', id);
+    }
+    for (final id in gameReviewIds) {
+      await SyncTombstones.record('game_reviews', id);
+    }
+    for (final id in excerptIds) {
+      await SyncTombstones.record('book_excerpts', id);
+    }
+    for (final id in personIds) {
+      await SyncTombstones.record('people', id);
+    }
+    for (final id in movieCharacterIds) {
+      await SyncTombstones.record('movie_characters', id);
+    }
+    for (final id in bookCharacterIds) {
+      await SyncTombstones.record('book_characters', id);
+    }
+    for (final id in gameCharacterIds) {
+      await SyncTombstones.record('game_characters', id);
+    }
+    for (final item in deletedCustomModuleItems) {
+      await SyncTombstones.record('custom_module_items', item.id);
     }
 
     await db.transaction((txn) async {
@@ -1747,7 +1804,7 @@ class AppProvider extends ChangeNotifier {
 
     // 影视类型
     final movies = await db.query('movies',
-        where: 'genres IS NOT NULL AND genres != ?', whereArgs: ['[]']);
+        where: 'genres IS NOT NULL AND genres != ? AND is_deleted = 0', whereArgs: ['[]']);
     for (final row in movies) {
       for (final genre in parseStringListGeneric(row['genres'])) {
         await insertTag(genre, 'movie_genre');
@@ -1756,7 +1813,7 @@ class AppProvider extends ChangeNotifier {
 
     // 书籍类型
     final books = await db.query('books',
-        where: 'genres IS NOT NULL AND genres != ?', whereArgs: ['[]']);
+        where: 'genres IS NOT NULL AND genres != ? AND is_deleted = 0', whereArgs: ['[]']);
     for (final row in books) {
       for (final genre in parseStringListGeneric(row['genres'])) {
         await insertTag(genre, 'book_genre');
@@ -1765,7 +1822,7 @@ class AppProvider extends ChangeNotifier {
 
     // 笔记标签
     final notes = await db.query('notes',
-        where: 'tags IS NOT NULL AND tags != ? AND tags != ?',
+        where: 'tags IS NOT NULL AND tags != ? AND tags != ? AND is_deleted = 0',
         whereArgs: ['[]', '']);
     for (final row in notes) {
       for (final tag in parseStringListGeneric(row['tags'])) {
@@ -1775,7 +1832,7 @@ class AppProvider extends ChangeNotifier {
 
     // 游戏类型
     final games = await db.query('games',
-        where: 'genres IS NOT NULL AND genres != ?', whereArgs: ['[]']);
+        where: 'genres IS NOT NULL AND genres != ? AND is_deleted = 0', whereArgs: ['[]']);
     for (final row in games) {
       for (final genre in parseStringListGeneric(row['genres'])) {
         await insertTag(genre, 'game_genre');

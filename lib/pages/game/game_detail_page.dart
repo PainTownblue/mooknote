@@ -844,6 +844,7 @@ class _GameDetailPageState extends State<GameDetailPage> {
   }
 
   Future<void> _downloadEditCoverFromUrl(String url) async {
+    if (!mounted) return;
     setState(() => _editIsDownloading = true);
     try {
       final response = await http.get(Uri.parse(url), headers: {

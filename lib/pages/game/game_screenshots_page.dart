@@ -296,11 +296,11 @@ class _GameScreenshotsPageState extends State<GameScreenshotsPage> {
       },
     );
 
-    if (confirmed != true) return;
     final url = urlController.text.trim();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       urlController.dispose();
     });
+    if (confirmed != true) return;
     if (url.isEmpty) { if (mounted) ToastUtil.show(context, '请输入图片链接'.tr); return; }
 
     try {

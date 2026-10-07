@@ -519,6 +519,9 @@ class BackupService {
       while (relativePath.startsWith('/') || relativePath.startsWith('\\')) {
         relativePath = relativePath.substring(1);
       }
+      // 防止 zip slip：拒绝含 .. 路径段或盘符的恶意条目，避免写出暂存目录
+      final segments = relativePath.split(RegExp(r'[/\\]'));
+      if (segments.any((s) => s == '..') || relativePath.contains(':')) continue;
       if (relativePath.isEmpty) continue;
       final stagedFile = File(path.join(stagingImagesDir.path, relativePath));
       if (!await stagedFile.parent.exists()) await stagedFile.parent.create(recursive: true);

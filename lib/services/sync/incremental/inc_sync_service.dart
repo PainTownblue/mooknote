@@ -49,6 +49,7 @@ class _Counters {
   int upImages = 0;
   int downImages = 0;
   int dedupImages = 0;
+  int failedImages = 0;
 }
 
 /// 增量同步服务 v2：内容寻址 blob + manifest + 平铺 UUID delta，多客户端 LWW
@@ -241,7 +242,9 @@ class IncSyncService {
 
       return IncSyncResult(
         success: true,
-        message: '恢复完成'.tr,
+        message: counters.failedImages > 0
+            ? '恢复完成，但有 {n} 张图片下载失败，再次执行恢复可重试'.trf({'n': counters.failedImages})
+            : '恢复完成'.tr,
         downloadedRecords: counters.downRecords,
         downloadedImages: counters.downImages,
         needReload: counters.downRecords > 0,
@@ -453,6 +456,7 @@ class IncSyncService {
             try {
               final obj = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
               final groupsBucket = _bucketGroups(obj);
+              final failedBefore = counters.failedImages;
               for (final r in obj['rows'] as List) {
                 final row = Map<String, dynamic>.from(r as Map);
                 await _mergeUpsert(
@@ -468,7 +472,12 @@ class IncSyncService {
                   imageMap: imageMap,
                 );
               }
-              seen.add(chunk.hash);
+              if (counters.failedImages == failedBefore) {
+                seen.add(chunk.hash);
+              } else {
+                // 图片未下齐：不记入已见，下次同步重试该分块补齐图片
+                manifestApplied = false;
+              }
             } catch (e) {
               debugPrint('[Inc2] chunk 应用失败: $e');
               manifestApplied = false;
@@ -513,6 +522,7 @@ class IncSyncService {
           }
           // 先合并本包图片映射，保证同包内新图片可下载
           imageMap.addAll(delta.images);
+          final failedBefore = counters.failedImages;
           for (final op in delta.ops) {
             final spec = IncEntities.specOf(op.table);
             if (spec == null) continue;
@@ -554,7 +564,12 @@ class IncSyncService {
               );
             }
           }
-          appliedDeltas.add(name);
+          if (counters.failedImages == failedBefore) {
+            appliedDeltas.add(name);
+          } else {
+            // 图片未下齐：不记入已应用，下次同步重试该 delta 补齐图片
+            allDeltasClean = false;
+          }
         }
         await SyncMetaStore.setAppliedDeltas(appliedDeltas);
         await SyncMetaStore.setImageMap(imageMap);
@@ -866,7 +881,7 @@ class IncSyncService {
       await db.delete(table, where: 'id = ?', whereArgs: [id]);
       counters.downRecords++;
     }
-    await SyncTombstones.putIfAbsent(table, id, incomingTs, origin);
+    await SyncTombstones.recordRemote(table, id, incomingTs, origin);
   }
 
   /// 比较前将图片路径统一为逻辑路径（两设备绝对路径必然不同）
@@ -982,7 +997,12 @@ class IncSyncService {
     final hash = imageMap[logical];
     if (hash == null) return;
     final bytes = await remote.getBlob(hash);
-    if (bytes == null) return;
+    if (bytes == null) {
+      // 计入失败：由调用方决定不推进水位/已应用集合，下次同步重试
+      counters.failedImages++;
+      debugPrint('[Inc2] 图片拉取失败: $logical ($hash)');
+      return;
+    }
     await file.parent.create(recursive: true);
     await file.writeAsBytes(bytes);
     counters.downImages++;
@@ -1192,7 +1212,9 @@ class IncSyncService {
       counters.dedupImages++;
     } else {
       final ok = await remote.uploadBlob(hash, bytes);
-      if (!ok) return;
+      // 上传失败必须中止推送：否则 delta 会引用远端不存在的 blob，
+      // 且推送水位推进后本地不再重发，其他设备永远拿不到这张图
+      if (!ok) throw Exception('图片上传失败'.tr);
       counters.upImages++;
     }
     newImageMap[logical] = hash;

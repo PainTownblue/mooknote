@@ -62,8 +62,9 @@ class SyncTombstones {
     }
   }
 
-  /// 应用远程删除时本地落墓碑，防止被旧快照/旧 delta 复活
-  static Future<void> putIfAbsent(
+  /// 应用远程删除时本地落墓碑，防止被旧快照/旧 delta 复活；
+  /// 已存在时保留删除时间更新的一方（同 ID 可能重建后再次被删除）
+  static Future<void> recordRemote(
     String entityType,
     String entityId,
     String deletedAt,
@@ -75,7 +76,18 @@ class SyncTombstones {
       where: 'entity_id = ? AND entity_type = ?',
       whereArgs: [entityId, entityType],
     );
-    if (existing.isNotEmpty) return;
+    if (existing.isNotEmpty) {
+      // 同 ID 重建后又被删除：保留最新的删除时间，避免压实后丢失最新删除
+      final existingTs = existing.first['deleted_at'] as String?;
+      if (existingTs != null && existingTs.compareTo(deletedAt) >= 0) return;
+      await db.update(
+        'sync_tombstones',
+        {'deleted_at': deletedAt, 'client_id': clientId, 'pushed': 0},
+        where: 'entity_id = ? AND entity_type = ?',
+        whereArgs: [entityId, entityType],
+      );
+      return;
+    }
     await db.insert('sync_tombstones', {
       'entity_id': entityId,
       'entity_type': entityType,

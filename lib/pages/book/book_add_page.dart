@@ -321,6 +321,7 @@ class _BookAddPageState extends State<BookAddPage> {
   }
 
   Future<void> _downloadCover(String url) async {
+    if (!mounted) return;
     setState(() => _isDownloading = true);
     try {
       final res = await http.get(Uri.parse(url), headers: {
