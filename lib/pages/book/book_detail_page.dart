@@ -1,21 +1,13 @@
 import 'dart:io';
 import 'dart:ui' as ui;
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
-import 'package:http/http.dart' as http;
 import '../../widgets/fade_in_local_image.dart';
 import '../../providers/app_provider.dart';
 import '../../models/data_models.dart';
 import '../../utils/toast_util.dart';
 import '../../utils/user_prefs.dart';
-import '../../utils/platform_utils.dart';
-import '../../utils/image_path_helper.dart';
-import '../../utils/responsive.dart';
-import '../../widgets/genre_selector_page.dart';
 import '../../widgets/work_people_section.dart';
 import '../../widgets/character_preview_section.dart';
 import '../../widgets/character_info_sheet.dart';
@@ -52,24 +44,11 @@ class _BookDetailPageState extends State<BookDetailPage> {
   List<dynamic> _characters = [];
 
   // ─── 编辑模式 ───
-  bool _isEditing = false;
-  final _editFormKey = GlobalKey<FormState>();
   late TextEditingController _titleCtrl;
   late TextEditingController _summaryCtrl;
   late TextEditingController _ratingCtrl;
   late TextEditingController _publisherCtrl;
   late TextEditingController _isbnCtrl;
-  List<String> _editAuthors = [];
-  List<String> _editTranslators = [];
-  List<String> _editGenres = [];
-  List<String> _editAlternateTitles = [];
-  String? _editCoverPath;
-  String _editStatus = 'want_to_read';
-  DateTime? _editPublishDate;
-  DateTime? _editStartDate;
-  DateTime? _editFinishDate;
-  bool _editIsDownloading = false;
-  final ImagePicker _picker = ImagePicker();
 
   @override
   void dispose() {
@@ -107,35 +86,6 @@ class _BookDetailPageState extends State<BookDetailPage> {
     _ratingCtrl = TextEditingController(text: b.rating?.toString() ?? '');
     _publisherCtrl = TextEditingController(text: b.publisher ?? '');
     _isbnCtrl = TextEditingController(text: b.isbn ?? '');
-    _editAuthors = List.from(b.authors);
-    _editTranslators = List.from(b.translators);
-    _editGenres = List.from(b.genres);
-    _editAlternateTitles = List.from(b.alternateTitles);
-    _editCoverPath = b.coverPath;
-    _editStatus = b.status;
-    _editPublishDate = b.publishDate;
-    _editStartDate = b.startDate;
-    _editFinishDate = b.finishDate;
-  }
-
-  void _enterEditMode() {
-    final latest = context.read<AppProvider>().books
-        .where((b) => b.id == widget.book.id).firstOrNull ?? widget.book;
-    _titleCtrl.text = latest.title;
-    _summaryCtrl.text = latest.summary ?? '';
-    _ratingCtrl.text = latest.rating?.toString() ?? '';
-    _publisherCtrl.text = latest.publisher ?? '';
-    _isbnCtrl.text = latest.isbn ?? '';
-    _editAuthors = List.from(latest.authors);
-    _editTranslators = List.from(latest.translators);
-    _editGenres = List.from(latest.genres);
-    _editAlternateTitles = List.from(latest.alternateTitles);
-    _editCoverPath = latest.coverPath;
-    _editStatus = latest.status;
-    _editPublishDate = latest.publishDate;
-    _editStartDate = latest.startDate;
-    _editFinishDate = latest.finishDate;
-    setState(() => _isEditing = true);
   }
 
   @override
@@ -146,9 +96,6 @@ class _BookDetailPageState extends State<BookDetailPage> {
       (p) => p.books.where((b) => b.id == widget.book.id).firstOrNull,
     ) ?? widget.book;
 
-    if (Breakpoint.isDesktop(context)) {
-      return _buildDesktopStyle(book, colors);
-    }
     return switch (_detailStyle) {
       1 => _buildOverlayStyle(book, colors),
       2 => _buildMinimalLayeredStyle(book, colors),
@@ -157,523 +104,8 @@ class _BookDetailPageState extends State<BookDetailPage> {
     };
   }
 
-  /// 桌面端左右分栏布局
-  Widget _buildDesktopStyle(Book book, ColorScheme colors) {
-    if (_isEditing) return _buildDesktopEditStyle(book, colors);
-    final hasCover = book.coverPath != null && book.coverPath!.isNotEmpty;
-    return Scaffold(
-      backgroundColor: colors.surface,
-      body: Column(
-        children: [
-          // 顶栏
-          Container(
-            height: 48,
-            decoration: BoxDecoration(
-              color: colors.surface,
-              border: Border(bottom: BorderSide(color: colors.outlineVariant, width: 0.5)),
-            ),
-            child: Row(children: [
-              IconButton(
-                icon: Icon(Icons.arrow_back, color: colors.onSurface, size: 18),
-                onPressed: widget.embedded
-                    ? () => context.read<AppProvider>().selectBook(null)
-                    : () => Navigator.pop(context),
-              ),
-              Expanded(
-                child: Text(book.title,
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: colors.onSurface),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              ),
-              const SizedBox(width: 4),
-            ]),
-          ),
-          // 主体：左封面 + 右信息
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 左侧封面
-                Container(
-                  width: 240,
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 200,
-                        height: 280,
-                        decoration: BoxDecoration(
-                          color: colors.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: hasCover
-                              ? [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 12, offset: const Offset(0, 4))]
-                              : null,
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: hasCover
-                            ? FadeInLocalImage(path: book.coverPath, fit: BoxFit.cover)
-                            : Center(child: Icon(Icons.menu_book, size: 48, color: colors.onSurface.withValues(alpha: 0.25))),
-                      ),
-                    ],
-                  ),
-                ),
-                // 右侧信息（可滚动）
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(0, 20, 24, 80),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(book.title,
-                          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: colors.onSurface, height: 1.3)),
-                        if (book.alternateTitles.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(book.alternateTitles.join(' / '),
-                            style: TextStyle(fontSize: 14, color: colors.onSurface.withValues(alpha: 0.4), height: 1.4)),
-                        ],
-                        const SizedBox(height: 16),
-                        Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                          if (book.rating != null) ...[
-                            Icon(Icons.star, size: 20, color: colors.onSurface),
-                            const SizedBox(width: 4),
-                            Text(book.rating!.toStringAsFixed(1),
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: colors.onSurface)),
-                          ],
-                          _buildStatusTag(book),
-                        ]),
-                        const SizedBox(height: 8),
-                        Text('添加于 {date}'.trf({'date': _formatDate(book.createdAt)}),
-                          style: TextStyle(fontSize: 12, color: colors.onSurface.withValues(alpha: 0.4))),
-                        Divider(height: 32, thickness: 0.5, color: colors.outline),
-                        // 内容模块（顺序/显隐可在设置中调整）
-                        ..._orderedModules(book, colors, 3),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // 底部操作栏
-          Container(
-            height: 56,
-            decoration: BoxDecoration(
-              color: colors.surface,
-              border: Border(top: BorderSide(color: colors.outlineVariant, width: 0.5)),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => _showDeleteDialog(context),
-                  icon: Icon(Icons.delete_outline, size: 16, color: colors.error),
-                  label: Text('删除'.tr, style: TextStyle(color: colors.error)),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: colors.error.withValues(alpha: 0.3)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.icon(
-                  onPressed: _enterEditMode,
-                  icon: const Icon(Icons.edit_outlined, size: 16),
-                  label: Text('编辑'.tr),
-                  style: FilledButton.styleFrom(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─── 桌面端编辑模式 ──────────────────────────────────────────
-
-  Widget _buildDesktopEditStyle(Book book, ColorScheme colors) {
-    final hasCover = _editCoverPath != null && _editCoverPath!.isNotEmpty;
-    return Scaffold(
-      backgroundColor: colors.surface,
-      body: Form(
-        key: _editFormKey,
-        child: Column(
-          children: [
-            Container(
-              height: 48,
-              decoration: BoxDecoration(color: colors.surface,
-                border: Border(bottom: BorderSide(color: colors.outlineVariant, width: 0.5))),
-              child: Row(children: [
-                IconButton(icon: Icon(Icons.close, color: colors.onSurface, size: 18),
-                  onPressed: () => setState(() => _isEditing = false)),
-                Expanded(child: Text('编辑书籍'.tr,
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: colors.onSurface))),
-                FilledButton.icon(onPressed: _saveEdit,
-                  icon: const Icon(Icons.check, size: 16), label: Text('保存'.tr),
-                  style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
-                const SizedBox(width: 12),
-              ]),
-            ),
-            Expanded(
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                // 左侧：封面 + 状态/评分
-                Container(width: 240, padding: const EdgeInsets.all(20), child: Column(children: [
-                  GestureDetector(onTap: _showEditCoverOptions, child: Container(
-                    width: 200, height: 280,
-                    decoration: BoxDecoration(color: colors.surfaceContainerHighest, borderRadius: BorderRadius.circular(12)),
-                    clipBehavior: Clip.antiAlias,
-                    child: Stack(alignment: Alignment.center, children: [
-                      hasCover ? FadeInLocalImage(path: _editCoverPath, fit: BoxFit.cover)
-                        : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                            Icon(Icons.image_outlined, size: 32, color: colors.onSurface.withValues(alpha: 0.25)),
-                            const SizedBox(height: 8),
-                            Text('点击添加封面'.tr, style: TextStyle(fontSize: 12, color: colors.onSurface.withValues(alpha: 0.35))),
-                          ]),
-                      if (_editIsDownloading) Container(color: Colors.black.withValues(alpha: 0.4),
-                        child: const CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
-                    ]),
-                  )),
-                  if (hasCover) Padding(padding: const EdgeInsets.only(top: 8),
-                    child: GestureDetector(onTap: () => setState(() => _editCoverPath = null),
-                      child: Text('移除封面'.tr, style: TextStyle(fontSize: 12, color: colors.onSurface.withValues(alpha: 0.5))))),
-                  const SizedBox(height: 20),
-                  _buildEditSectionLabel('状态'.tr, colors),
-                  const SizedBox(height: 6),
-                  Container(padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(color: colors.surfaceContainerHighest, borderRadius: BorderRadius.circular(6)),
-                    child: Wrap(spacing: 0, runSpacing: 4, children: [
-                      _buildEditStatusChip('想读'.tr, 'want_to_read', colors),
-                      _buildEditStatusChip('在读'.tr, 'reading', colors),
-                      _buildEditStatusChip('已读'.tr, 'read', colors),
-                      _buildEditStatusChip('弃读'.tr, 'abandoned', colors),
-                    ])),
-                  const SizedBox(height: 16),
-                  _buildEditSectionLabel('评分'.tr, colors),
-                  const SizedBox(height: 6),
-                  Row(children: [
-                    ...List.generate(5, (i) {
-                      final starVal = i + 1;
-                      final currentRating = double.tryParse(_ratingCtrl.text) ?? 0;
-                      final starRating = currentRating / 2;
-                      final isFilled = starVal <= starRating;
-                      final isHalf = starVal == starRating.ceil() && starRating % 1 != 0;
-                      return GestureDetector(onTap: () => setState(() => _ratingCtrl.text = (starVal * 2).toString()),
-                        child: Padding(padding: const EdgeInsets.symmetric(horizontal: 1),
-                          child: Icon(isHalf ? Icons.star_half : (isFilled ? Icons.star : Icons.star_border),
-                            size: 20, color: (isFilled || isHalf) ? const Color(0xFFFFB800) : colors.outline)));
-                    }),
-                    const SizedBox(width: 8),
-                    Container(width: 48, height: 28,
-                      decoration: BoxDecoration(color: colors.surfaceContainerHighest, borderRadius: BorderRadius.circular(6)),
-                      child: TextFormField(controller: _ratingCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        textAlign: TextAlign.center, inputFormatters: [_RatingInputFormatter()],
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: colors.onSurface),
-                        decoration: InputDecoration(hintText: '0-10', hintStyle: TextStyle(fontSize: 11, color: colors.onSurface.withValues(alpha: 0.25)),
-                          border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(vertical: 6), isDense: true),
-                        onChanged: (_) => setState(() {}))),
-                    if (_ratingCtrl.text.isNotEmpty) ...[
-                      const SizedBox(width: 4),
-                      GestureDetector(onTap: () => setState(() => _ratingCtrl.clear()),
-                        child: Icon(Icons.close, size: 14, color: colors.onSurface.withValues(alpha: 0.3))),
-                    ],
-                  ]),
-                ])),
-                // 右侧：可滚动表单
-                Expanded(child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(0, 20, 24, 80),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    _buildEditField('名称'.tr, _titleCtrl, hint: '书籍名称'.tr, required: true),
-                    const SizedBox(height: 16),
-                    _buildEditChipField('作者'.tr, _editAuthors, onTap: () async {
-                      final provider = context.read<AppProvider>();
-                      final data = provider.books.map((b) => b.authors).toList();
-                      final result = await GenreSelectorPage.show(context: context, title: '选择作者'.tr,
-                        existingTagsFuture: compute(_collectUnique, data), initialSelected: _editAuthors, hint: '如：余华、莫言'.tr);
-                      if (result != null) setState(() => _editAuthors = result);
-                    }),
-                    const SizedBox(height: 16),
-                    _buildEditChipField('译者'.tr, _editTranslators, onTap: () async {
-                      final provider = context.read<AppProvider>();
-                      final data = provider.books.map((b) => b.translators).toList();
-                      final result = await GenreSelectorPage.show(context: context, title: '选择译者'.tr,
-                        existingTagsFuture: compute(_collectUnique, data), initialSelected: _editTranslators, hint: '如：林少华'.tr);
-                      if (result != null) setState(() => _editTranslators = result);
-                    }),
-                    const SizedBox(height: 16),
-                    _buildEditChipField('别名'.tr, _editAlternateTitles, onTap: () async {
-                      final result = await GenreSelectorPage.show(context: context, title: '添加别名'.tr,
-                        existingTags: [], initialSelected: _editAlternateTitles, hint: '输入别名'.tr);
-                      if (result != null) setState(() => _editAlternateTitles = result);
-                    }),
-                    const SizedBox(height: 16),
-                    _buildEditChipField('类型'.tr, _editGenres, onTap: () async {
-                      final provider = context.read<AppProvider>();
-                      final tags = await provider.getTags('book_genre', excludeHidden: true);
-                      final names = tags.map((t) => t['name'] as String).toList();
-                      if (!mounted) return;
-                      final result = await GenreSelectorPage.show(context: context, title: '选择类型'.tr,
-                        existingTags: names, initialSelected: _editGenres, hint: '如：小说、科幻'.tr);
-                      if (result != null) setState(() => _editGenres = result);
-                    }),
-                    const SizedBox(height: 16),
-                    _buildEditField('出版社'.tr, _publisherCtrl, hint: '出版社名称'.tr),
-                    const SizedBox(height: 16),
-                    _buildEditField('ISBN', _isbnCtrl, hint: 'ISBN编号'.tr),
-                    const SizedBox(height: 16),
-                    Row(children: [
-                      Expanded(child: _buildEditDateField('出版时间'.tr, _editPublishDate, (d) => setState(() => _editPublishDate = d))),
-                      const SizedBox(width: 12),
-                      Expanded(child: _buildEditDateField('开始阅读'.tr, _editStartDate, (d) => setState(() => _editStartDate = d), clearable: true)),
-                    ]),
-                    const SizedBox(height: 16),
-                    _buildEditDateField('读完日期'.tr, _editFinishDate, (d) => setState(() => _editFinishDate = d), clearable: true),
-                    const SizedBox(height: 16),
-                    _buildEditSectionLabel('简介'.tr, colors),
-                    const SizedBox(height: 6),
-                    Container(constraints: const BoxConstraints(minHeight: 120),
-                      child: TextFormField(controller: _summaryCtrl, maxLines: null,
-                        style: TextStyle(fontSize: 14, color: colors.onSurface, height: 1.6),
-                        decoration: InputDecoration(hintText: '写下书籍简介...'.tr,
-                          hintStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.25)),
-                          filled: true, fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.5),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                          contentPadding: const EdgeInsets.all(12)))),
-                  ]),
-                )),
-              ]),
-            ),
-            Container(height: 48,
-              decoration: BoxDecoration(color: colors.surface,
-                border: Border(top: BorderSide(color: colors.outlineVariant, width: 0.5))),
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                OutlinedButton.icon(onPressed: () => _showDeleteDialog(context),
-                  icon: Icon(Icons.delete_outline, size: 16, color: colors.error),
-                  label: Text('删除'.tr, style: TextStyle(color: colors.error)),
-                  style: OutlinedButton.styleFrom(side: BorderSide(color: colors.error.withValues(alpha: 0.3)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
-              ])),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEditSectionLabel(String label, ColorScheme colors) {
-    return Text(label, style: TextStyle(fontSize: 12, color: colors.onSurface.withValues(alpha: 0.4)));
-  }
-
-  Widget _buildEditStatusChip(String label, String value, ColorScheme colors) {
-    final selected = _editStatus == value;
-    return GestureDetector(onTap: () => setState(() => _editStatus = value),
-      child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(color: selected ? colors.surface : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-          boxShadow: selected ? [BoxShadow(color: colors.onSurface.withValues(alpha: 0.03), blurRadius: 4, offset: const Offset(0, 2))] : null),
-        child: Text(label, style: TextStyle(fontSize: 12, fontWeight: selected ? FontWeight.w500 : FontWeight.normal,
-          color: selected ? colors.onSurface : colors.onSurface.withValues(alpha: 0.4)))));
-  }
-
-  Widget _buildEditField(String label, TextEditingController ctrl, {String hint = '', bool required = false}) {
-    final colors = Theme.of(context).colorScheme;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(required ? '$label *' : label, style: TextStyle(fontSize: 12, color: colors.onSurface.withValues(alpha: 0.4))),
-      const SizedBox(height: 6),
-      TextFormField(controller: ctrl, style: TextStyle(fontSize: 14, color: colors.onSurface),
-        validator: required ? (v) => (v == null || v.trim().isEmpty) ? '请输入{label}'.trf({'label': label}) : null : null,
-        decoration: InputDecoration(hintText: hint, hintStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.25)),
-          filled: true, fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.5),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), isDense: true)),
-    ]);
-  }
-
-  Widget _buildEditChipField(String label, List<String> chips, {required VoidCallback onTap}) {
-    final colors = Theme.of(context).colorScheme;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: TextStyle(fontSize: 12, color: colors.onSurface.withValues(alpha: 0.4))),
-      const SizedBox(height: 6),
-      GestureDetector(onTap: onTap,
-        child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(color: colors.surfaceContainerHighest.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(8)),
-          child: chips.isEmpty
-            ? Text('点击选择{label}'.trf({'label': label}), style: TextStyle(fontSize: 14, color: colors.onSurface.withValues(alpha: 0.25)))
-            : Wrap(spacing: 4, runSpacing: 4, children: chips.map((c) => Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: colors.surface, borderRadius: BorderRadius.circular(4)),
-                child: Text(c, style: TextStyle(fontSize: 12, color: colors.onSurface)))).toList()))),
-    ]);
-  }
-
-  Widget _buildEditDateField(String label, DateTime? date, ValueChanged<DateTime?> onChanged, {bool clearable = false}) {
-    final colors = Theme.of(context).colorScheme;
-    final hasDate = date != null;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: TextStyle(fontSize: 12, color: colors.onSurface.withValues(alpha: 0.4))),
-      const SizedBox(height: 6),
-      GestureDetector(onTap: () async {
-        final picked = await showDatePicker(context: context, initialDate: date ?? DateTime.now(),
-          firstDate: DateTime(1900), lastDate: DateTime.now().add(const Duration(days: 365 * 5)));
-        if (picked != null) onChanged(picked);
-      },
-        child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(color: colors.surfaceContainerHighest.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(8)),
-          child: Row(children: [
-            Icon(Icons.calendar_today_outlined, size: 14, color: colors.onSurface.withValues(alpha: 0.4)),
-            const SizedBox(width: 8),
-            Expanded(child: Text(hasDate ? '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}' : '选择日期'.tr,
-              style: TextStyle(fontSize: 14, color: hasDate ? colors.onSurface : colors.onSurface.withValues(alpha: 0.25)), overflow: TextOverflow.ellipsis)),
-            if (clearable && hasDate) GestureDetector(onTap: () => onChanged(null),
-              child: Icon(Icons.close, size: 14, color: colors.onSurface.withValues(alpha: 0.3))),
-          ]))),
-    ]);
-  }
-
-  void _showEditCoverOptions() {
-    final colors = Theme.of(context).colorScheme;
-    appModalBottomSheet(context: context, backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => SafeArea(child: Padding(padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 40, height: 4, decoration: BoxDecoration(color: colors.outline, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 20),
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 24), child: Align(alignment: Alignment.centerLeft,
-            child: Text('添加封面'.tr, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: colors.onSurface)))),
-          const SizedBox(height: 16),
-          ListTile(leading: Icon(Icons.photo_library_outlined, color: colors.onSurface.withValues(alpha: 0.6)),
-            title: Text('从相册选择'.tr, style: TextStyle(color: colors.onSurface)),
-            onTap: () { Navigator.pop(ctx); _pickEditCover(); }),
-          ListTile(leading: Icon(Icons.link_outlined, color: colors.onSurface.withValues(alpha: 0.6)),
-            title: Text('网络链接'.tr, style: TextStyle(color: colors.onSurface)),
-            onTap: () { Navigator.pop(ctx); _pickEditCoverFromUrl(); }),
-        ]))));
-  }
-
-  Future<void> _pickEditCover() async {
-    try {
-      final XFile? picked = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 800, maxHeight: 1200, imageQuality: 85);
-      if (picked == null) return;
-      final fileName = 'cover_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final targetPath = await ImagePathHelper.instance.getBookCoverPath(widget.book.id, fileName);
-      await ImagePathHelper.instance.ensureDirExists(p.dirname(targetPath));
-      await File(picked.path).copy(targetPath);
-      if (mounted) setState(() => _editCoverPath = targetPath);
-    } catch (e) {
-      if (mounted) ToastUtil.show(context, '选择封面失败: {e}'.trf({'e': e}));
-    }
-  }
-
-  Future<void> _pickEditCoverFromUrl() async {
-    final urlCtrl = TextEditingController();
-    final confirmed = await appDialog<bool>(context: context, builder: (ctx) {
-      final colors = Theme.of(ctx).colorScheme;
-      return AlertDialog(backgroundColor: colors.surface, elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: Text('添加网络图片'.tr, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: colors.onSurface)),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('请输入图片链接地址'.tr, style: TextStyle(fontSize: 14, color: colors.onSurface.withValues(alpha: 0.6))),
-          const SizedBox(height: 12),
-          TextField(controller: urlCtrl, keyboardType: TextInputType.url, style: TextStyle(fontSize: 14, color: colors.onSurface),
-            decoration: InputDecoration(hintText: 'https://example.com/image.jpg',
-              hintStyle: TextStyle(color: colors.onSurface.withValues(alpha: 0.25)),
-              filled: true, fillColor: colors.surfaceContainerHigh,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: colors.primary, width: 1)))),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('取消'.tr, style: TextStyle(color: colors.onSurface.withValues(alpha: 0.6)))),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: colors.primary, foregroundColor: colors.onPrimary, elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8)),
-            child: Text('确定'.tr)),
-        ]);
-    });
-    final url = urlCtrl.text.trim(); urlCtrl.dispose();
-    if (confirmed != true || url.isEmpty) return;
-    await _downloadEditCoverFromUrl(url);
-  }
-
-  Future<void> _downloadEditCoverFromUrl(String url) async {
-    if (!mounted) return;
-    setState(() => _editIsDownloading = true);
-    try {
-      final response = await http.get(Uri.parse(url), headers: {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15',
-        'Accept': 'image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Referer': Uri.parse(url).replace(path: '/').toString(),
-      });
-      if (response.statusCode != 200) throw Exception('下载失败: HTTP {code}'.trf({'code': response.statusCode}));
-      final contentType = response.headers['content-type'];
-      if (contentType != null && !contentType.startsWith('image/')) throw Exception('链接返回的不是图片');
-      if (response.bodyBytes.length > 10 * 1024 * 1024) throw Exception('图片太大');
-      final fileName = 'cover_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final targetPath = await ImagePathHelper.instance.getBookCoverPath(widget.book.id, fileName);
-      await ImagePathHelper.instance.ensureDirExists(p.dirname(targetPath));
-      await File(targetPath).writeAsBytes(response.bodyBytes);
-      if (mounted) setState(() => _editCoverPath = targetPath);
-    } catch (e) {
-      if (mounted) ToastUtil.show(context, '下载失败: {e}'.trf({'e': e}));
-    } finally {
-      if (mounted) setState(() => _editIsDownloading = false);
-    }
-  }
-
-  Future<void> _saveEdit() async {
-    if (!_editFormKey.currentState!.validate()) return;
-    try {
-      final rating = _ratingCtrl.text.isNotEmpty ? double.tryParse(_ratingCtrl.text) : null;
-      final updated = widget.book.copyWith(
-        title: _titleCtrl.text.trim(),
-        coverPath: _editCoverPath,
-        authors: _editAuthors,
-        translators: _editTranslators,
-        alternateTitles: _editAlternateTitles,
-        genres: _editGenres,
-        publisher: _publisherCtrl.text.trim().isNotEmpty ? _publisherCtrl.text.trim() : null,
-        isbn: _isbnCtrl.text.trim().isNotEmpty ? _isbnCtrl.text.trim() : null,
-        summary: _summaryCtrl.text.trim(),
-        rating: rating,
-        status: _editStatus,
-        publishDate: _editPublishDate,
-        startDate: _editStartDate,
-        finishDate: _editFinishDate,
-        updatedAt: DateTime.now(),
-      );
-      await context.read<AppProvider>().updateBook(updated);
-      if (!mounted) return;
-      ToastUtil.show(context, '更新成功'.tr);
-      setState(() => _isEditing = false);
-    } catch (e) {
-      if (mounted) ToastUtil.show(context, '保存失败: {e}'.trf({'e': e}));
-    }
-  }
-
-  static List<String> _collectUnique(List<List<String>> lists) {
-    final s = <String>{};
-    for (final l in lists) { s.addAll(l); }
-    return s.toList()..sort();
-  }
-
-  Widget _buildDesktopInfoRow(String label, String value, ColorScheme colors) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: 56, child: Text(label, style: TextStyle(fontSize: 13, color: colors.onSurface.withValues(alpha: 0.4)))),
-          Expanded(child: Text(value, style: TextStyle(fontSize: 15, color: colors.onSurface, height: 1.5))),
-        ],
-      ),
-    );
-  }
-
   /// 按用户配置（设置-详情页模块）生成内容模块列表。
-  /// layout: 0=标准, 1=叠层毛玻璃, 2=浅色极简, 3=桌面
+  /// layout: 0=标准, 1=叠层毛玻璃, 2=浅色极简
   List<Widget> _orderedModules(Book book, ColorScheme colors, int layout) {
     final result = <Widget>[];
     for (final m in UserPrefs().getDetailModules('book')) {
@@ -692,8 +124,6 @@ class _BookDetailPageState extends State<BookDetailPage> {
             if (book.startDate != null || book.finishDate != null || book.readCount > 0) {
               result.add(_buildLayeredReadingDates(book));
             }
-          } else if (layout == 3) {
-            result.addAll(_desktopCreditsRows(book, colors));
           } else {
             result.add(_buildAuthorsSection(book));
             if (book.translators.isNotEmpty) result.add(_buildTranslatorsSection(book));
@@ -708,7 +138,6 @@ class _BookDetailPageState extends State<BookDetailPage> {
           if (book.genres.isNotEmpty) {
             result.add(switch (layout) {
               2 => _buildLayeredGenres(book),
-              3 => _buildDesktopGenres(book, colors),
               _ => _buildGenresSection(book),
             });
           }
@@ -723,10 +152,8 @@ class _BookDetailPageState extends State<BookDetailPage> {
         case 'summary':
           if (book.summary != null && book.summary!.isNotEmpty) {
             if (layout == 1 && !isFirst) result.add(const SizedBox(height: 12));
-            if (layout == 3 && !isFirst) result.add(Divider(height: 32, thickness: 0.5, color: colors.outline));
             result.add(switch (layout) {
               2 => _buildLayeredSummary(book),
-              3 => _buildDesktopSummary(book, colors),
               _ => _buildSummarySection(book),
             });
           }
@@ -747,117 +174,15 @@ class _BookDetailPageState extends State<BookDetailPage> {
             if (layout == 1) result.add(const SizedBox(height: 12));
             if (layout == 2) result.add(const SizedBox(height: 20));
             if (layout == 0) result.add(Divider(height: 0.5, thickness: 0.5, color: colors.outline));
-            if (layout == 3) result.add(Divider(height: 32, thickness: 0.5, color: colors.outline));
           }
           result.add(switch (layout) {
             1 => _buildExtraSectionsOverlay(book),
             2 => _buildLayeredExtraSections(book),
-            3 => _buildDesktopExtra(book, colors),
             _ => _buildExtraSections(book),
           });
       }
     }
     return result;
-  }
-
-  /// 桌面端：书籍信息行列表
-  List<Widget> _desktopCreditsRows(Book book, ColorScheme colors) {
-    return [
-      _buildDesktopInfoRow('作者'.tr, book.authors.join('，'), colors),
-      if (book.translators.isNotEmpty)
-        _buildDesktopInfoRow('译者'.tr, book.translators.join('，'), colors),
-      if (book.isbn != null && book.isbn!.isNotEmpty)
-        _buildDesktopInfoRow('ISBN', book.isbn!, colors),
-      if (book.publisher != null && book.publisher!.isNotEmpty)
-        _buildDesktopInfoRow('出版社'.tr, book.publisher!, colors),
-      if (book.publishDate != null)
-        _buildDesktopInfoRow('出版时间'.tr, '{y}年{m}月'.trf({'y': book.publishDate!.year, 'm': book.publishDate!.month.toString().padLeft(2, '0')}), colors),
-      if (book.startDate != null || book.finishDate != null) ...[
-        const SizedBox(height: 8),
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(width: 56, child: Text('阅读日期'.tr, style: TextStyle(fontSize: 13, color: colors.onSurface.withValues(alpha: 0.4)))),
-          Expanded(child: Wrap(spacing: 12, runSpacing: 8, children: [
-            if (book.startDate != null) _buildDateChip('开始'.tr, book.startDate!, false),
-            if (book.finishDate != null) _buildDateChip('读完'.tr, book.finishDate!, false),
-          ])),
-        ]),
-      ],
-      if (book.readCount > 0) ...[
-        const SizedBox(height: 8),
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(width: 56, child: Text('阅读次数'.tr, style: TextStyle(fontSize: 13, color: colors.onSurface.withValues(alpha: 0.4)))),
-          Expanded(child: Text('{n} 次'.trf({'n': book.readCount}), style: TextStyle(fontSize: 13, color: colors.onSurface))),
-        ]),
-      ],
-    ];
-  }
-
-  /// 桌面端：类型标签块
-  Widget _buildDesktopGenres(Book book, ColorScheme colors) {
-    return Column(children: [
-      const SizedBox(height: 8),
-      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(width: 56, child: Text('类型'.tr, style: TextStyle(fontSize: 13, color: colors.onSurface.withValues(alpha: 0.4)))),
-        Expanded(child: Wrap(spacing: 8, runSpacing: 8,
-          children: book.genres.map((g) => Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(color: colors.surfaceContainerHighest, borderRadius: BorderRadius.circular(16)),
-            child: Text(g, style: TextStyle(fontSize: 13, color: colors.onSurface.withValues(alpha: 0.6))),
-          )).toList(),
-        )),
-      ]),
-    ]);
-  }
-
-  /// 桌面端：简介块（不含前置分割线）
-  Widget _buildDesktopSummary(Book book, ColorScheme colors) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Container(width: 4, height: 16, decoration: BoxDecoration(color: colors.onSurface, borderRadius: BorderRadius.circular(2))),
-        const SizedBox(width: 8),
-        Text('简介'.tr, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: colors.onSurface)),
-      ]),
-      const SizedBox(height: 12),
-      Text(book.summary!, style: TextStyle(fontSize: 15, color: colors.onSurface, height: 1.8)),
-    ]);
-  }
-
-  /// 桌面端：更多入口块（不含前置分割线）
-  Widget _buildDesktopExtra(Book book, ColorScheme colors) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Container(width: 4, height: 16, decoration: BoxDecoration(color: colors.onSurface, borderRadius: BorderRadius.circular(2))),
-        const SizedBox(width: 8),
-        Text('更多'.tr, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: colors.onSurface)),
-      ]),
-      const SizedBox(height: 16),
-      _buildExtraSectionItem(
-        icon: Icons.rate_review_outlined,
-        title: '书评'.tr,
-        subtitleFuture: context.read<AppProvider>().getBookReviewCount(book.id),
-        emptyText: '暂无书评'.tr,
-        unit: '条书评'.tr,
-        onTap: () => _navigateToReviews(book),
-      ),
-      const SizedBox(height: 12),
-      _buildExtraSectionItem(
-        icon: Icons.format_quote_outlined,
-        title: '摘抄'.tr,
-        subtitleFuture: context.read<AppProvider>().getBookExcerptCount(book.id),
-        emptyText: '暂无摘抄'.tr,
-        unit: '条摘抄'.tr,
-        onTap: () => _navigateToExcerpts(book),
-      ),
-      const SizedBox(height: 12),
-      _buildExtraSectionItem(
-        icon: Icons.people_outline,
-        title: '角色'.tr,
-        subtitleFuture: context.read<AppProvider>().getBookCharacterCount(book.id),
-        emptyText: '暂无角色'.tr,
-        unit: '个角色'.tr,
-        onTap: () => _navigateToCharacters(book),
-      ),
-    ]);
   }
 
   /// 标准样式
@@ -948,7 +273,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
                     IconButton(
                       icon: Icon(widget.embedded ? Icons.arrow_back : Icons.arrow_back_ios_new, color: Colors.white, size: 18),
                       onPressed: widget.embedded
-                          ? () => context.read<AppProvider>().selectBook(null)
+                          ? () => Navigator.pop(context)
                           : () => Navigator.pop(context),
                     ),
                     ValueListenableBuilder<bool>(
@@ -1114,7 +439,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
                         color: show ? colors.onSurface : Colors.white,
                         size: 18),
                       onPressed: widget.embedded
-                          ? () => context.read<AppProvider>().selectBook(null)
+                          ? () => Navigator.pop(context)
                           : () => Navigator.pop(context),
                     ),
                     const SizedBox(width: 4),
@@ -1493,16 +818,14 @@ class _BookDetailPageState extends State<BookDetailPage> {
           backgroundColor: colors.error,
           foregroundColor: colors.onError,
         ),
-        if (!PlatformUtils.isDesktop) ...[
-          const SizedBox(height: 12),
-          _buildFloatingButton(
-            icon: Icons.share_outlined,
-            onPressed: () => _showSharePoster(book),
-            tooltip: '分享海报'.tr,
-            backgroundColor: const Color(0xFF4CAF50),
-            foregroundColor: Colors.white,
-          ),
-        ],
+        const SizedBox(height: 12),
+        _buildFloatingButton(
+          icon: Icons.share_outlined,
+          onPressed: () => _showSharePoster(book),
+          tooltip: '分享海报'.tr,
+          backgroundColor: const Color(0xFF4CAF50),
+          foregroundColor: Colors.white,
+        ),
       ],
     );
   }
@@ -1553,7 +876,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
             IconButton(
               icon: Icon(widget.embedded ? Icons.arrow_back : Icons.arrow_back_ios_new, color: colors.onSurface, size: 18),
               onPressed: widget.embedded
-                  ? () => context.read<AppProvider>().selectBook(null)
+                  ? () => Navigator.pop(context)
                   : () => Navigator.pop(context),
             ),
             const SizedBox(width: 4),
@@ -2577,17 +1900,5 @@ class _BookDetailPageState extends State<BookDetailPage> {
         builder: (context) => BookSharePage(book: book),
       ),
     );
-  }
-}
-
-class _RatingInputFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
-    final text = newValue.text;
-    if (text.isEmpty) return newValue;
-    if (!RegExp(r'^\d{0,2}\.?\d{0,1}$').hasMatch(text)) return oldValue;
-    final n = double.tryParse(text);
-    if (n != null && n > 10) return oldValue;
-    return newValue;
   }
 }

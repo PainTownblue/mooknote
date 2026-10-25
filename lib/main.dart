@@ -8,14 +8,11 @@ import 'package:provider/provider.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:window_manager/window_manager.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:media_kit/media_kit.dart';
 import 'pages/home/home_page.dart';
 import 'utils/theme/app_theme.dart';
 import 'utils/app_router.dart';
-import 'utils/platform_utils.dart';
 import 'utils/user_prefs.dart';
 import 'services/changelog_service.dart';
 import 'services/badge_service.dart';
@@ -28,7 +25,6 @@ import 'services/sync/incremental/inc_sync_service.dart';
 import 'services/sync/incremental/sync_meta_store.dart';
 import 'providers/app_provider.dart';
 import 'l10n/app_strings.dart';
-import 'widgets/app_shell.dart';
 import 'widgets/frosted_background.dart';
 import './widgets/app_overlay.dart';
 
@@ -37,18 +33,6 @@ final RouteObserver<ModalRoute<void>> routeObserver = LoggingRouteObserver();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
-  // 桌面端（Windows / Linux）：使用 FFI 初始化 sqflite
-  if (PlatformUtils.isDesktop) {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-    // 初始化 window_manager：隐藏原生标题栏
-    await windowManager.ensureInitialized();
-    windowManager.waitUntilReadyToShow().then((_) async {
-      await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
-      await windowManager.setMinimumSize(const Size(900, 640));
-      await windowManager.show();
-    });
-  }
   await UserPrefs.init();
   // 崩溃自动上报（匿名，与调试日志开关无关）
   ReportService.instance.installCrashHook();
@@ -418,10 +402,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
     ));
-    // 桌面端: 同步窗口边框明暗
-    if (PlatformUtils.isDesktop) {
-      windowManager.setBrightness(isDark ? Brightness.dark : Brightness.light);
-    }
   }
 
   @override
@@ -503,7 +483,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 darkTheme: dark,
                 themeMode: isFrosted ? ThemeMode.dark : sel.themeMode,
                 builder: (ctx, nav) {
-                  Widget shell = AppShell(child: nav!);
+                  Widget shell = nav!;
                   // 毛玻璃主题：全局背景层（模糊封面 + 深色遮罩）垫底
                   if (isFrosted) {
                     shell = Stack(

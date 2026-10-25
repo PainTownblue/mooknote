@@ -4,7 +4,6 @@ import '../../l10n/app_strings.dart';
 import '../../models/data_models.dart';
 import '../../providers/app_provider.dart';
 import '../../utils/user_prefs.dart';
-import '../../utils/platform_utils.dart';
 import '../../utils/toast_util.dart';
 import '../../widgets/app_overlay.dart';
 import '../../widgets/custom_module_icon.dart';
@@ -20,7 +19,6 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
   final UserPrefs _userPrefs = UserPrefs();
 
   // 主界面
-  bool _showDesktopHomeTab = true;
   bool _showMovieTab = true;
   bool _showBookTab = true;
   bool _showNoteTab = true;
@@ -60,7 +58,6 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
 
   void _loadSettings() {
     setState(() {
-      _showDesktopHomeTab = _userPrefs.showDesktopHomeTab;
       _showMovieTab = _userPrefs.showMovieTab;
       _showBookTab = _userPrefs.showBookTab;
       _showNoteTab = _userPrefs.showNoteTab;
@@ -92,7 +89,6 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
 
   int get _enabledTabCount {
     int count = 0;
-    if (_showDesktopHomeTab && PlatformUtils.isDesktop) count++;
     if (_showMovieTab) count++;
     if (_showBookTab) count++;
     if (_showNoteTab) count++;
@@ -103,7 +99,6 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
 
   List<(int, String, IconData)> get _enabledTabs {
     final all = <(int, String, IconData)>[];
-    if (_showDesktopHomeTab && PlatformUtils.isDesktop) all.add((-1, '主页'.tr, Icons.dashboard_outlined));
     all.addAll([
       (0, '影视'.tr, Icons.movie_outlined),
       (1, '阅读'.tr, Icons.menu_book_outlined),
@@ -218,16 +213,6 @@ class _FeatureSettingsPageState extends State<FeatureSettingsPage> {
 
           // ── 模块开关 ──
           _buildSectionHeader('模块开关'.tr),
-          if (PlatformUtils.isDesktop) ...[
-            _buildSwitchItem(Icons.dashboard_outlined, '主页'.tr, '桌面端数据概览与分析'.tr, _showDesktopHomeTab, (v) async {
-              await _userPrefs.setShowDesktopHomeTab(v);
-              setState(() {
-                _showDesktopHomeTab = v;
-                _fixDefaultTabIndex();
-              });
-            }),
-            Divider(height: 0.5, indent: 24, endIndent: 24, color: colors.outlineVariant),
-          ],
           _buildSwitchItem(Icons.movie_outlined, '观影'.tr, '记录和管理观影记录'.tr,
               _showMovieTab, _toggleMovieTab),
           Divider(

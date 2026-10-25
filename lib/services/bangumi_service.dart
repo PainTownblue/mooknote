@@ -44,7 +44,7 @@ class BangumiService {
       version = (await PackageInfo.fromPlatform()).version;
     } catch (_) {}
     final platform =
-        Platform.isAndroid ? 'Android' : Platform.isWindows ? 'Windows' : Platform.operatingSystem;
+        Platform.isAndroid ? 'Android' : Platform.operatingSystem;
     _userAgent =
         'dellevin/mooknote${version.isNotEmpty ? '/$version' : ''} ($platform) (https://github.com/DelLevin-Home/mooknote)';
     return _userAgent!;

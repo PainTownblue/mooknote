@@ -6,7 +6,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../l10n/app_strings.dart';
 import '../../providers/app_provider.dart';
 import '../../utils/user_prefs.dart';
-import '../../utils/platform_utils.dart';
 import '../../utils/theme/app_theme.dart';
 import '../../utils/toast_util.dart';
 import '../../services/media_scan_channel.dart';
@@ -76,32 +75,30 @@ class _SettingsPageState extends State<SettingsPage> {
                 indent: 24,
                 endIndent: 24,
                 color: colors.outlineVariant),
-          if (!PlatformUtils.isDesktop) ...[
-            _buildNavigationItem(
-              icon: Icons.tune_outlined,
-              title: '功能设置'.tr,
-              subtitle: '启动标签、模块开关、侧边栏功能'.tr,
-              onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const FeatureSettingsPage())),
-            ),
-            Divider(
-                height: 0.5,
-                indent: 24,
-                endIndent: 24,
-                color: colors.outlineVariant),
-            _buildNavigationItem(
-              icon: Icons.dashboard_outlined,
-              title: '布局设置'.tr,
-              subtitle: '影视、阅读、笔记的展示样式'.tr,
-              onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const LayoutSettingsPage())),
-            ),
-            Divider(
-                height: 0.5,
-                indent: 24,
-                endIndent: 24,
-                color: colors.outlineVariant),
-          ],
+          _buildNavigationItem(
+            icon: Icons.tune_outlined,
+            title: '功能设置'.tr,
+            subtitle: '启动标签、模块开关、侧边栏功能'.tr,
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const FeatureSettingsPage())),
+          ),
+          Divider(
+              height: 0.5,
+              indent: 24,
+              endIndent: 24,
+              color: colors.outlineVariant),
+          _buildNavigationItem(
+            icon: Icons.dashboard_outlined,
+            title: '布局设置'.tr,
+            subtitle: '影视、阅读、笔记的展示样式'.tr,
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const LayoutSettingsPage())),
+          ),
+          Divider(
+              height: 0.5,
+              indent: 24,
+              endIndent: 24,
+              color: colors.outlineVariant),
           _buildNavigationItem(
             icon: Icons.view_agenda_outlined,
             title: '详情页设置'.tr,
@@ -126,13 +123,12 @@ class _SettingsPageState extends State<SettingsPage> {
               indent: 24,
               endIndent: 24,
               color: colors.outlineVariant),
-          if (!PlatformUtils.isDesktop) _buildFontSelector(),
-          if (!PlatformUtils.isDesktop)
-            Divider(
-                height: 0.5,
-                indent: 24,
-                endIndent: 24,
-                color: colors.outlineVariant),
+          _buildFontSelector(),
+          Divider(
+              height: 0.5,
+              indent: 24,
+              endIndent: 24,
+              color: colors.outlineVariant),
           _buildLanguageSelector(),
           _buildSectionHeader('其他设置'.tr),
           _buildActionItem(
@@ -187,20 +183,18 @@ class _SettingsPageState extends State<SettingsPage> {
               indent: 24,
               endIndent: 24,
               color: colors.outlineVariant),
-          if (!PlatformUtils.isDesktop) ...[
-            _buildSwitchItem(
-              icon: Icons.swipe_vertical_outlined,
-              title: '底部导航栏滚动隐藏'.tr,
-              subtitle: '下滑时自动隐藏底部导航栏'.tr,
-              value: _hideBottomNavOnScroll,
-              onChanged: _toggleHideBottomNavOnScroll,
-            ),
-            Divider(
-                height: 0.5,
-                indent: 24,
-                endIndent: 24,
-                color: colors.outlineVariant),
-          ],
+          _buildSwitchItem(
+            icon: Icons.swipe_vertical_outlined,
+            title: '底部导航栏滚动隐藏'.tr,
+            subtitle: '下滑时自动隐藏底部导航栏'.tr,
+            value: _hideBottomNavOnScroll,
+            onChanged: _toggleHideBottomNavOnScroll,
+          ),
+          Divider(
+              height: 0.5,
+              indent: 24,
+              endIndent: 24,
+              color: colors.outlineVariant),
           _buildSwitchItem(
             icon: Icons.bug_report_outlined,
             title: '调试模式'.tr,

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../providers/app_provider.dart';
-import '../utils/platform_utils.dart';
 import '../utils/user_prefs.dart';
 import '../utils/slide_up_page_route.dart';
 import '../widgets/app_overlay.dart';
@@ -117,30 +116,6 @@ void showAddSheet(BuildContext context, AppProvider provider) {
     ));
   }
 
-  if (PlatformUtils.isDesktop) {
-    appDialog(
-      context: context,
-      builder: (ctx) {
-        final bc = Theme.of(ctx).colorScheme;
-        return AlertDialog(
-          backgroundColor: bc.surface,
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-          contentPadding: const EdgeInsets.symmetric(vertical: 8),
-          title: Text('新增记录'.tr,
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: bc.onSurface)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: options,
-          ),
-        );
-      },
-    );
-  } else {
     appModalBottomSheet(
       context: context,
       backgroundColor: colors.surface,
@@ -184,7 +159,6 @@ void showAddSheet(BuildContext context, AppProvider provider) {
         );
       },
     );
-  }
 }
 
 Widget _buildOption({

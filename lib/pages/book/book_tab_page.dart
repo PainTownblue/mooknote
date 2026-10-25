@@ -15,11 +15,9 @@ import '../../widgets/shimmer_skeleton.dart';
 import '../../widgets/top_fade_scrim.dart';
 import '../../widgets/fade_in_local_image.dart';
 import 'package:mooknote/l10n/app_strings.dart';
-import '../../widgets/master_detail_scaffold.dart';
-import '../../widgets/detail_placeholder.dart';
-import 'book_detail_page.dart';
-import 'book_add_page.dart';
 import '../../widgets/app_overlay.dart';
+import '../../widgets/detail_popup.dart';
+import 'book_detail_page.dart';
 
 /// 状态索引 → 状态值
 const _bookStatusMap = {0: 'read', 1: 'reading', 2: 'want_to_read', 3: 'abandoned'};
@@ -70,11 +68,10 @@ class _BookTabPageState extends State<BookTabPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isWideContent = Breakpoint.isWideContent(context);
     final provider = context.watch<AppProvider>();
     final isWallMode = provider.bookshelfMode;
 
-    final masterContent = Column(
+    return Column(
       children: [
         if (!isWallMode) const BookStatusBar(),
         Expanded(
@@ -86,19 +83,6 @@ class _BookTabPageState extends State<BookTabPage> {
           ),
         ),
       ],
-    );
-
-    if (!isWideContent) return masterContent;
-
-    final selectedBook = provider.selectedBook;
-    final detailWidget = provider.isAdding && provider.addingType == 1
-        ? BookAddPage(onCancel: () => provider.cancelAdding())
-        : selectedBook != null
-            ? BookDetailPage(book: selectedBook, embedded: true)
-            : DetailPlaceholder(icon: Icons.menu_book_outlined, message: '选择一本书查看详情'.tr);
-    return MasterDetailScaffold(
-      master: masterContent,
-      detail: detailWidget,
     );
   }
 
@@ -372,8 +356,8 @@ class _BookTabViewState extends State<_BookTabView>
   }
 
   void _onBookTap(Book book) {
-    if (Breakpoint.isWideContent(context)) {
-      context.read<AppProvider>().selectBook(book);
+    if (Breakpoint.isTablet(context)) {
+      showDetailPopup(context, BookDetailPage(book: book, embedded: true));
     } else {
       Navigator.pushNamed(context, '/book-detail', arguments: book);
     }
@@ -434,10 +418,8 @@ class _BookTabViewState extends State<_BookTabView>
           itemBuilder: (context, index) {
             if (index >= _items.length) return _buildLoadMore();
             final item = _items[index];
-            final provider = context.read<AppProvider>();
             return BookListItem(
               book: item,
-              selected: Breakpoint.isWideContent(context) && provider.selectedBook?.id == item.id,
               onTap: () => _onBookTap(item),
             );
           },
@@ -471,8 +453,6 @@ class _BookTabViewState extends State<_BookTabView>
       loadMoreIndicator: _buildLoadMore(),
       itemBuilder: (b) => BookListItem(
         book: b,
-        selected: Breakpoint.isWideContent(context) &&
-            context.read<AppProvider>().selectedBook?.id == b.id,
         onTap: () => _onBookTap(b),
       ),
     );

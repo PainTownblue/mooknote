@@ -2,18 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:provider/provider.dart';
-import '../../utils/image_picker_helper.dart';
-import 'package:path/path.dart' as p;
 import '../../providers/app_provider.dart';
 import '../../widgets/fade_in_local_image.dart';
 import '../../models/data_models.dart';
-import '../../utils/toast_util.dart';
-import '../../utils/image_path_helper.dart';
 import '../../utils/image_saver.dart';
-import '../../utils/responsive.dart';
-import '../../utils/platform_utils.dart';
-import '../../widgets/note_editor.dart';
-import '../../widgets/tag_side_panel.dart';
 import '../../widgets/image_rename_dialog.dart';
 import 'note_share_page.dart';
 import '../../widgets/app_overlay.dart';
@@ -36,23 +28,15 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
   ];
 
   // ─── 编辑模式 ───
-  bool _isEditing = false;
-  String _editMode = 'edit'; // 'edit' | 'preview'
   late TextEditingController _titleCtrl;
   late TextEditingController _contentCtrl;
-  List<String> _editTags = [];
-  List<String> _editImages = [];
   Timer? _autoSaveTimer;
-  String _saveStatus = '';
-  final _editorKey = GlobalKey<NoteEditorState>();
 
   @override
   void initState() {
     super.initState();
     _titleCtrl = TextEditingController(text: widget.note.title);
     _contentCtrl = TextEditingController(text: widget.note.content);
-    _editTags = List.from(widget.note.tags);
-    _editImages = List.from(widget.note.images);
   }
 
   @override
@@ -63,82 +47,6 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
     super.dispose();
   }
 
-  void _enterEditMode() {
-    final latest = context.read<AppProvider>().notes
-        .where((n) => n.id == widget.note.id).firstOrNull ?? widget.note;
-    _titleCtrl.text = latest.title;
-    _contentCtrl.text = latest.content;
-    _editTags = List.from(latest.tags);
-    _editImages = List.from(latest.images);
-    _saveStatus = '';
-    setState(() => _isEditing = true);
-  }
-
-  void _onContentChanged() {
-    _autoSaveTimer?.cancel();
-    _autoSaveTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted) _autoSave();
-    });
-  }
-
-  Future<void> _autoSave() async {
-    String content;
-    if (_editorKey.currentState != null && _editorKey.currentState!.isReady) {
-      content = (await _editorKey.currentState!.getValue()).trim();
-    } else {
-      content = _contentCtrl.text.trim();
-    }
-    final title = _titleCtrl.text.trim();
-    if (title.isEmpty && content.isEmpty) return;
-    try {
-      if (!mounted) return;
-      final latest = context.read<AppProvider>().notes
-          .where((n) => n.id == widget.note.id).firstOrNull ?? widget.note;
-      final updated = latest.copyWith(
-        title: title, content: content, tags: _editTags, images: _editImages,
-        updatedAt: DateTime.now(),
-      );
-      await context.read<AppProvider>().updateNote(updated);
-      if (mounted) {
-        setState(() => _saveStatus = 'saved');
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted && _saveStatus == 'saved') setState(() => _saveStatus = '');
-        });
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _saveEdit() async {
-    _autoSaveTimer?.cancel();
-    final title = _titleCtrl.text.trim();
-    String content;
-    if (_editorKey.currentState != null && _editorKey.currentState!.isReady) {
-      content = (await _editorKey.currentState!.getValue()).trim();
-    } else {
-      content = _contentCtrl.text.trim();
-    }
-    if (title.isEmpty && content.isEmpty) {
-      if (!mounted) return;
-      ToastUtil.show(context, '标题或内容不能为空'.tr);
-      return;
-    }
-    try {
-      if (!mounted) return;
-      final latest = context.read<AppProvider>().notes
-          .where((n) => n.id == widget.note.id).firstOrNull ?? widget.note;
-      final updated = latest.copyWith(
-        title: title, content: content, tags: _editTags, images: _editImages,
-        updatedAt: DateTime.now(),
-      );
-      await context.read<AppProvider>().updateNote(updated);
-      if (!mounted) return;
-      ToastUtil.show(context, '保存成功'.tr);
-      setState(() => _isEditing = false);
-    } catch (e) {
-      if (mounted) ToastUtil.show(context, '保存失败: {e}'.trf({'e': e}));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -147,16 +55,13 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
       (p) => p.notes.where((n) => n.id == widget.note.id).firstOrNull,
     ) ?? widget.note;
 
-    if (Breakpoint.isDesktop(context)) {
-      return _buildDesktopStyle(note, colors);
-    }
     return Scaffold(
       backgroundColor: colors.surface,
       appBar: AppBar(
         leading: widget.embedded
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () => context.read<AppProvider>().selectNote(null),
+                onPressed: () => Navigator.pop(context),
               )
             : null,
         titleSpacing: 0,
@@ -256,412 +161,6 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
     );
   }
 
-  /// 桌面端布局
-  Widget _buildDesktopStyle(Note note, ColorScheme colors) {
-    if (_isEditing) return _buildDesktopEditStyle(note, colors);
-    return Scaffold(
-      backgroundColor: colors.surface,
-      body: Column(
-        children: [
-          // 顶栏
-          Container(
-            height: 52,
-            decoration: BoxDecoration(
-              color: colors.surface,
-              border: Border(bottom: BorderSide(color: colors.outlineVariant, width: 0.5)),
-            ),
-            child: Row(children: [
-              const SizedBox(width: 8),
-              IconButton(
-                icon: Icon(Icons.arrow_back, color: colors.onSurface, size: 18),
-                onPressed: widget.embedded
-                    ? () => context.read<AppProvider>().selectNote(null)
-                    : () => Navigator.pop(context),
-              ),
-              Expanded(
-                child: Text(
-                  note.title.isNotEmpty ? note.title : _truncateContent(note.content),
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: colors.onSurface.withValues(alpha: 0.6)),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              ),
-              const SizedBox(width: 16),
-            ]),
-          ),
-          // 内容区（限宽居中）
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 32),
-              children: [
-                Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 720),
-                  child: Padding(padding: const EdgeInsets.symmetric(horizontal: 48),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      // 标题
-                      if (note.title.isNotEmpty)
-                        Text(note.title, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: colors.onSurface, height: 1.3)),
-                      // 日期 + 字数
-                      const SizedBox(height: 12),
-                      Row(children: [
-                        Text('{y}/{m}/{d} {w}'.trf({
-                          'y': note.createdAt.year,
-                          'm': note.createdAt.month.toString().padLeft(2, '0'),
-                          'd': note.createdAt.day.toString().padLeft(2, '0'),
-                          'w': _weekdays[note.createdAt.weekday - 1],
-                        }),
-                          style: TextStyle(fontSize: 12, color: colors.onSurface.withValues(alpha: 0.4))),
-                        const SizedBox(width: 12),
-                        Text('${note.createdAt.hour.toString().padLeft(2, '0')}:${note.createdAt.minute.toString().padLeft(2, '0')}',
-                          style: TextStyle(fontSize: 12, color: colors.onSurface.withValues(alpha: 0.4))),
-                        const SizedBox(width: 12),
-                        Text('{n} 字'.trf({'n': note.content.length}),
-                          style: TextStyle(fontSize: 12, color: colors.onSurface.withValues(alpha: 0.4))),
-                      ]),
-                      // 标签
-                      if (note.tags.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        Wrap(spacing: 6, runSpacing: 4, children: [
-                          for (final tag in note.tags)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: colors.primaryContainer,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(tag, style: TextStyle(fontSize: 12, color: colors.onPrimaryContainer, fontWeight: FontWeight.w500)),
-                            ),
-                        ]),
-                      ],
-                      const SizedBox(height: 24),
-                      // Markdown 内容
-                      Markdown(
-                        data: note.content,
-                        styleSheet: _buildMarkdownStyleSheet(colors),
-                        padding: EdgeInsets.zero,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        // ignore: deprecated_member_use
-                        imageBuilder: (uri, title, alt) => _buildMarkdownImage(uri, note),
-                      ),
-                      if (note.images.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        _buildImageRow(note.images),
-                      ],
-                      const SizedBox(height: 48),
-                    ]),
-                  ),
-                )),
-              ],
-            ),
-          ),
-          // 底部操作栏
-          Container(
-            height: 52,
-            decoration: BoxDecoration(
-              color: colors.surface,
-              border: Border(top: BorderSide(color: colors.outlineVariant, width: 0.5)),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => _showDeleteDialog(context),
-                  icon: Icon(Icons.delete_outline, size: 16, color: colors.error),
-                  label: Text('删除'.tr, style: TextStyle(color: colors.error)),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: colors.error.withValues(alpha: 0.3)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.icon(
-                  onPressed: _enterEditMode,
-                  icon: const Icon(Icons.edit_outlined, size: 16),
-                  label: Text('编辑'.tr),
-                  style: FilledButton.styleFrom(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─── 桌面端编辑模式：左编辑 + 右预览 ────────────────────────────
-
-  Widget _buildDesktopEditStyle(Note note, ColorScheme colors) {
-    return Scaffold(
-      backgroundColor: colors.surface,
-      body: Column(
-        children: [
-          // 顶栏
-          Container(
-            height: 52,
-            decoration: BoxDecoration(color: colors.surface,
-              border: Border(bottom: BorderSide(color: colors.outlineVariant, width: 0.5))),
-            child: Row(children: [
-              const SizedBox(width: 8),
-              IconButton(icon: Icon(Icons.close, color: colors.onSurface, size: 18),
-                onPressed: () { _autoSaveTimer?.cancel(); if (_saveStatus == 'saved') _autoSave(); setState(() => _isEditing = false); }),
-              Expanded(child: Text(_titleCtrl.text.isNotEmpty ? _titleCtrl.text : '编辑笔记'.tr,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: colors.onSurface.withValues(alpha: 0.6)),
-                maxLines: 1, overflow: TextOverflow.ellipsis)),
-              // 编辑/预览切换
-              Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(color: colors.surfaceContainerHighest, borderRadius: BorderRadius.circular(6)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  _editModeChip(Icons.edit_outlined, '编辑'.tr, 'edit', colors),
-                  _editModeChip(Icons.visibility_outlined, '预览'.tr, 'preview', colors),
-                ]),
-              ),
-              const SizedBox(width: 12),
-              if (_saveStatus == 'saved')
-                Padding(padding: const EdgeInsets.only(right: 8),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Container(width: 6, height: 6, decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle)),
-                    const SizedBox(width: 4),
-                    Text('已保存'.tr, style: TextStyle(fontSize: 11, color: colors.onSurface.withValues(alpha: 0.4))),
-                  ])),
-              FilledButton.icon(onPressed: _saveEdit,
-                icon: const Icon(Icons.check, size: 16), label: Text('保存'.tr),
-                style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
-              const SizedBox(width: 16),
-            ]),
-          ),
-          // 主体
-          Expanded(
-            child: _editMode == 'edit' ? _buildEditArea(colors, note) : _buildPreviewArea(colors, note),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _editModeChip(IconData icon, String label, String mode, ColorScheme colors) {
-    final active = _editMode == mode;
-    return GestureDetector(onTap: () => setState(() => _editMode = mode),
-      child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-        decoration: BoxDecoration(
-          color: active ? colors.surface : Colors.transparent,
-          borderRadius: BorderRadius.circular(4),
-          boxShadow: active ? [BoxShadow(color: colors.onSurface.withValues(alpha: 0.03), blurRadius: 2)] : null),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 14, color: active ? colors.onSurface : colors.onSurface.withValues(alpha: 0.4)),
-          const SizedBox(width: 4),
-          Text(label, style: TextStyle(fontSize: 12, fontWeight: active ? FontWeight.w500 : FontWeight.normal,
-            color: active ? colors.onSurface : colors.onSurface.withValues(alpha: 0.4))),
-        ])));
-  }
-
-  Widget _buildEditArea(ColorScheme colors, Note note) {
-    return Column(children: [
-      // 标题输入
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 720),
-          child: TextField(controller: _titleCtrl, maxLines: 1,
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: colors.onSurface, height: 1.4),
-            decoration: InputDecoration(hintText: '添加标题'.tr,
-              hintStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: colors.onSurface.withValues(alpha: 0.2), height: 1.4),
-              border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-            onChanged: (_) => setState(() {})),
-        )),
-      ),
-      // 标签行 — 标题下面，靠左
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 720),
-          child: Align(alignment: Alignment.centerLeft, child: _buildEditTagRow(colors)),
-        )),
-      ),
-      // 内容编辑
-      Expanded(
-        child: NoteEditor(
-          key: _editorKey,
-          initialContent: _contentCtrl.text,
-          onContentChanged: (value) {
-            _contentCtrl.text = value;
-            _onContentChanged();
-          },
-        ),
-      ),
-      // 图片网格
-      if (_editImages.isNotEmpty) _buildEditImageGrid(colors),
-      // 底部字数
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-          Text('{n} 字'.trf({'n': _contentCtrl.text.length}), style: TextStyle(fontSize: 11, color: colors.onSurface.withValues(alpha: 0.3))),
-        ]),
-      ),
-    ]);
-  }
-
-  Widget _buildEditTagRow(ColorScheme colors) {
-    return Wrap(
-      spacing: 6,
-      runSpacing: 4,
-      children: [
-        for (final tag in _editTags)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: colors.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text(tag, style: TextStyle(fontSize: 11, color: colors.onSurface.withValues(alpha: 0.6))),
-              const SizedBox(width: 3),
-              GestureDetector(
-                onTap: () => setState(() => _editTags.remove(tag)),
-                child: Icon(Icons.close, size: 10, color: colors.onSurface.withValues(alpha: 0.3)),
-              ),
-            ]),
-          ),
-        GestureDetector(
-          onTap: _showEditTagPanel,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: colors.onSurface.withValues(alpha: 0.25), width: 1),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.add, size: 12, color: colors.onSurface.withValues(alpha: 0.35)),
-              const SizedBox(width: 2),
-              Text('标签'.tr, style: TextStyle(fontSize: 11, color: colors.onSurface.withValues(alpha: 0.35))),
-            ]),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _showEditTagPanel() async {
-    final provider = context.read<AppProvider>();
-    final tagRows = await provider.getTags('note_tag');
-    final allTags = tagRows.map((t) => t['name'] as String).toSet();
-    for (final note in provider.notes) {
-      allTags.addAll(note.tags);
-    }
-    if (!mounted) return;
-    TagSidePanel.show(
-      context: context,
-      selectedTags: List.from(_editTags),
-      allAvailableTags: allTags.toList()..sort(),
-      onTagsChanged: (newTags) {
-        setState(() => _editTags = newTags);
-      },
-    );
-  }
-
-  Widget _buildPreviewArea(ColorScheme colors, Note note) {
-    return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 24),
-      children: [
-        Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 720),
-          child: Padding(padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if (_titleCtrl.text.isNotEmpty) ...[
-                Text(_titleCtrl.text, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: colors.onSurface, height: 1.3)),
-                const SizedBox(height: 12),
-              ],
-              // 标签
-              if (_editTags.isNotEmpty) ...[
-                Wrap(spacing: 6, runSpacing: 4, children: [
-                  for (final tag in _editTags)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: colors.primaryContainer,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(tag, style: TextStyle(fontSize: 12, color: colors.onPrimaryContainer, fontWeight: FontWeight.w500)),
-                    ),
-                ]),
-                const SizedBox(height: 20),
-              ],
-              Markdown(
-                data: _contentCtrl.text,
-                styleSheet: _buildMarkdownStyleSheet(colors),
-                padding: EdgeInsets.zero,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                // ignore: deprecated_member_use
-                imageBuilder: (uri, title, alt) => _buildMarkdownImage(uri, note),
-              ),
-              if (_editImages.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                _buildImageRow(_editImages),
-              ],
-              const SizedBox(height: 48),
-            ]),
-          ),
-        )),
-      ],
-    );
-  }
-
-  Future<void> _pickEditImage() async {
-    try {
-      final files = await pickLocalImages(context);
-      if (!mounted || files.isEmpty) return;
-
-      final targetDir = await ImagePathHelper.instance.getNoteImagesDir(widget.note.id);
-      await ImagePathHelper.instance.ensureDirExists(targetDir);
-
-      final newPaths = <String>[];
-      for (final file in files) {
-        final ext = p.extension(file.path).isNotEmpty ? p.extension(file.path) : '.jpg';
-        final fileName = '${DateTime.now().millisecondsSinceEpoch}_${newPaths.length}$ext';
-        final targetPath = p.join(targetDir, fileName);
-        await file.copy(targetPath);
-        newPaths.add(targetPath);
-      }
-      if (newPaths.isNotEmpty && mounted) {
-        setState(() => _editImages.addAll(newPaths));
-        _onContentChanged();
-      }
-    } catch (e) {
-      if (mounted) ToastUtil.show(context, '选择图片失败: {e}'.trf({'e': e}));
-    }
-  }
-
-  Widget _buildEditImageGrid(ColorScheme colors) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-      height: 72,
-      child: ListView.separated(scrollDirection: Axis.horizontal,
-        itemCount: _editImages.length + 1,
-        separatorBuilder: (_, __) => const SizedBox(width: 6),
-        itemBuilder: (ctx, i) {
-          if (i < _editImages.length) {
-            return Stack(children: [
-              InkWell(onTap: () => _showImagePreview(_editImages, i),
-                child: Container(width: 56, height: 56,
-                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(6), border: Border.all(color: colors.outlineVariant, width: 0.5)),
-                  clipBehavior: Clip.antiAlias,
-                  child: FadeInLocalImage(path: _editImages[i], fit: BoxFit.cover))),
-              Positioned(top: -4, right: -4,
-                child: GestureDetector(onTap: () => setState(() => _editImages.removeAt(i)),
-                  child: Container(width: 16, height: 16,
-                    decoration: BoxDecoration(color: colors.surface, shape: BoxShape.circle, border: Border.all(color: colors.outline)),
-                    child: Icon(Icons.close, size: 10, color: colors.onSurface.withValues(alpha: 0.5))))),
-            ]);
-          }
-          return InkWell(onTap: _pickEditImage,
-            child: Container(width: 56, height: 56,
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(6), color: colors.surfaceContainerHighest,
-                border: Border.all(color: colors.outlineVariant)),
-              child: Icon(Icons.add_photo_alternate_outlined, size: 20, color: colors.onSurface.withValues(alpha: 0.3))));
-        }),
-    );
-  }
-
   Widget _buildTagRow(List<String> tags) {
     final colors = Theme.of(context).colorScheme;
     return Container(
@@ -717,54 +216,6 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
           ),
         );
       }).toList(),
-    );
-  }
-
-  Widget _buildImageRow(List<String> images) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      height: 80,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(
-          top: BorderSide(color: colors.outlineVariant, width: 0.5),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 6,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        itemCount: images.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          return InkWell(
-            onTap: () => _showImagePreview(images, index),
-            child: Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colors.outlineVariant, width: 0.5),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: FadeInLocalImage(
-                path: images[index],
-                fit: BoxFit.cover,
-                errorWidget: Container(
-                  color: colors.surfaceContainerHighest,
-                  child: Icon(Icons.broken_image_outlined, size: 20, color: colors.onSurface.withValues(alpha: 0.25)),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
     );
   }
 
@@ -856,21 +307,6 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
     );
   }
 
-  String _truncateContent(String content) {
-    final cleaned = content
-        .replaceAll(RegExp(r'^#+\s+', multiLine: true), '')
-        .replaceAll(RegExp(r'\*\*(.+?)\*\*'), r'$1')
-        .replaceAll(RegExp(r'\*(.+?)\*'), r'$1')
-        .replaceAll(RegExp(r'`(.+?)`'), r'$1')
-        .replaceAll(RegExp(r'^\s*[-*+]\s', multiLine: true), '')
-        .replaceAll(RegExp(r'^\s*>\s', multiLine: true), '')
-        .replaceAll(RegExp(r'\[([^\]]+)\]\([^)]+\)'), r'$1')
-        .replaceAll(RegExp(r'!\[([^\]]*)\]\([^)]+\)'), '')
-        .trim();
-    if (cleaned.isEmpty) return '无标题'.tr;
-    return cleaned.length > 20 ? '${cleaned.substring(0, 20)}…' : cleaned;
-  }
-
   void _navigateToEdit(BuildContext context) {
     final currentNote = context.read<AppProvider>().notes.firstWhere(
       (n) => n.id == widget.note.id,
@@ -903,16 +339,14 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
           backgroundColor: colors.error,
           foregroundColor: colors.onError,
         ),
-        if (!PlatformUtils.isDesktop) ...[
-          const SizedBox(height: 12),
-          _buildFloatingButton(
-            icon: Icons.share_outlined,
-            onPressed: _shareNote,
-            tooltip: '分享'.tr,
-            backgroundColor: const Color(0xFF4CAF50),
-            foregroundColor: Colors.white,
-          ),
-        ],
+        const SizedBox(height: 12),
+        _buildFloatingButton(
+          icon: Icons.share_outlined,
+          onPressed: _shareNote,
+          tooltip: '分享'.tr,
+          backgroundColor: const Color(0xFF4CAF50),
+          foregroundColor: Colors.white,
+        ),
       ],
     );
   }
@@ -964,11 +398,7 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
             onPressed: () {
               Navigator.pop(ctx);
               context.read<AppProvider>().removeNote(widget.note.id);
-              if (widget.embedded) {
-                context.read<AppProvider>().selectNote(null);
-              } else {
-                Navigator.pop(context);
-              }
+              Navigator.pop(context);
             },
             child: Text('删除'.tr, style: TextStyle(color: errorColor)),
           ),

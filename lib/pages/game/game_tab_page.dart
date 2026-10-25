@@ -15,11 +15,9 @@ import '../../widgets/shimmer_skeleton.dart';
 import '../../widgets/top_fade_scrim.dart';
 import '../../widgets/fade_in_local_image.dart';
 import '../../utils/responsive.dart';
-import '../../widgets/master_detail_scaffold.dart';
-import '../../widgets/detail_placeholder.dart';
-import 'game_detail_page.dart';
-import 'game_add_page.dart';
 import '../../widgets/app_overlay.dart';
+import '../../widgets/detail_popup.dart';
+import 'game_detail_page.dart';
 
 /// 状态索引 → 状态值
 const _gameStatusMap = {0: 'completed', 1: 'playing', 2: 'want_to_play', 3: 'abandoned'};
@@ -70,11 +68,10 @@ class _GameTabPageState extends State<GameTabPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isWideContent = Breakpoint.isWideContent(context);
     final provider = context.watch<AppProvider>();
     final isWallMode = provider.gameWallMode;
 
-    final masterContent = Column(
+    return Column(
       children: [
         if (!isWallMode) const GameStatusBar(),
         Expanded(
@@ -86,19 +83,6 @@ class _GameTabPageState extends State<GameTabPage> {
           ),
         ),
       ],
-    );
-
-    if (!isWideContent) return masterContent;
-
-    final selectedGame = provider.selectedGame;
-    final detailWidget = provider.isAdding && provider.addingType == 3
-        ? GameAddPage(onCancel: () => provider.cancelAdding())
-        : selectedGame != null
-            ? GameDetailPage(game: selectedGame, embedded: true)
-            : DetailPlaceholder(icon: Icons.sports_esports_outlined, message: '选择一款游戏查看详情'.tr);
-    return MasterDetailScaffold(
-      master: masterContent,
-      detail: detailWidget,
     );
   }
 
@@ -381,8 +365,8 @@ class _GameTabViewState extends State<_GameTabView>
   }
 
   void _onGameTap(Game game) {
-    if (Breakpoint.isWideContent(context)) {
-      context.read<AppProvider>().selectGame(game);
+    if (Breakpoint.isTablet(context)) {
+      showDetailPopup(context, GameDetailPage(game: game, embedded: true));
     } else {
       Navigator.pushNamed(context, '/game-detail', arguments: game);
     }
@@ -432,8 +416,6 @@ class _GameTabViewState extends State<_GameTabView>
         final crossAxisCount = fixedCount > 0
             ? fixedCount
             : responsiveCrossAxisCount(constraints.maxWidth, minItemWidth: 110);
-        final isWideContent = Breakpoint.isWideContent(context);
-        final provider = context.read<AppProvider>();
         return GridView.builder(
           controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
@@ -447,7 +429,6 @@ class _GameTabViewState extends State<_GameTabView>
             final item = _items[index];
             return GameListItem(
               game: item,
-              selected: isWideContent && provider.selectedGame?.id == item.id,
               onTap: () => _onGameTap(item),
             );
           },
@@ -472,8 +453,6 @@ class _GameTabViewState extends State<_GameTabView>
   /// 年份网格：按发售年份倒序分段，无年份归入"其他"
   Widget _buildYearGridView() {
     final fixedCount = context.select<AppProvider, int>((p) => p.gameGridCount);
-    final isWideContent = Breakpoint.isWideContent(context);
-    final provider = context.read<AppProvider>();
     return YearGridView<Game>(
       items: _items,
       yearOf: (g) => g.releaseDate?.year,
@@ -483,7 +462,6 @@ class _GameTabViewState extends State<_GameTabView>
       loadMoreIndicator: _buildLoadMoreIndicator(),
       itemBuilder: (g) => GameListItem(
         game: g,
-        selected: isWideContent && provider.selectedGame?.id == g.id,
         onTap: () => _onGameTap(g),
       ),
     );

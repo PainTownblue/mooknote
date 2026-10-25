@@ -28,7 +28,6 @@ import '../data/custom_module/custom_module_item_dao.dart';
 import '../services/sync/incremental/sync_tombstones.dart';
 import '../data/database_helper.dart';
 import '../utils/image_path_helper.dart';
-import '../utils/platform_utils.dart';
 import '../utils/user_prefs.dart';
 import '../utils/theme/app_theme.dart';
 import '../l10n/app_strings.dart';
@@ -287,13 +286,7 @@ class AppProvider extends ChangeNotifier {
     _showGameTitle = userPrefs.showGameTitle;
     _showGameRating = userPrefs.showGameRating;
     final defaultIndex = userPrefs.defaultMainTabIndex;
-    // 桌面端且主页开启时，强制默认为主页
-    if (PlatformUtils.isDesktop && userPrefs.showDesktopHomeTab) {
-      if (defaultIndex != -1) {
-        userPrefs.setDefaultMainTabIndex(-1);
-      }
-      _mainTabIndex = -1;
-    } else {
+    {
       // 确保选中的标签是启用的
       final showMovie = userPrefs.showMovieTab;
       final showBook = userPrefs.showBookTab;

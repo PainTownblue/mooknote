@@ -78,15 +78,9 @@ class UsageStatsService with WidgetsBindingObserver {
     } else if (Platform.isIOS) {
       final info = await deviceInfo.iosInfo;
       rawId = info.identifierForVendor ?? '';
-    } else if (Platform.isWindows) {
-      final info = await deviceInfo.windowsInfo;
-      rawId = '${info.computerName}-${info.numberOfCores}';
     } else if (Platform.isMacOS) {
       final info = await deviceInfo.macOsInfo;
       rawId = '${info.computerName}-${info.systemGUID ?? ''}';
-    } else if (Platform.isLinux) {
-      final info = await deviceInfo.linuxInfo;
-      rawId = '${info.name}-${info.id}';
     } else {
       rawId = const Uuid().v4();
     }

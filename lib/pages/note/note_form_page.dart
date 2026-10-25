@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../utils/image_picker_helper.dart';
-import '../../utils/platform_utils.dart';
 import 'package:path/path.dart' as p;
 import '../../data/gallery/image_asset_dao.dart';
 import '../../providers/app_provider.dart';
@@ -155,10 +154,6 @@ class _NoteFormPageState extends State<NoteFormPage> {
     final colors = Theme.of(context).colorScheme;
     final topPadding = MediaQuery.of(context).padding.top;
 
-    // 桌面端：与编辑页一致的布局
-    if (PlatformUtils.isDesktop) {
-      return _buildWindowsDesktopLayout(colors, topPadding);
-    }
 
     return PopScope(
       canPop: false,
@@ -231,125 +226,6 @@ class _NoteFormPageState extends State<NoteFormPage> {
         },
       ),
     ),
-    );
-  }
-
-  /// Windows 桌面端布局 — 与编辑页一致
-  Widget _buildWindowsDesktopLayout(ColorScheme colors, double topPadding) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
-        final shouldPop = await _confirmLeave();
-        if (shouldPop && mounted) Navigator.pop(context);
-      },
-      child: Scaffold(
-        backgroundColor: colors.surface,
-        body: Column(
-          children: [
-            // 顶栏 — 与编辑页一致
-            Container(
-              height: 52,
-              decoration: BoxDecoration(color: colors.surface,
-                border: Border(bottom: BorderSide(color: colors.outlineVariant, width: 0.5))),
-              child: Row(children: [
-                const SizedBox(width: 8),
-                IconButton(icon: Icon(Icons.close, color: colors.onSurface, size: 18),
-                  onPressed: () async {
-                    final shouldPop = await _confirmLeave();
-                    if (shouldPop && mounted) Navigator.pop(context);
-                  }),
-                Expanded(child: Text(_titleController.text.isNotEmpty ? _titleController.text : '新建笔记'.tr,
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: colors.onSurface.withValues(alpha: 0.6)),
-                  maxLines: 1, overflow: TextOverflow.ellipsis)),
-                if (_saveStatus == 'saved')
-                  Padding(padding: const EdgeInsets.only(right: 8),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Container(width: 6, height: 6, decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle)),
-                      const SizedBox(width: 4),
-                      Text('已保存'.tr, style: TextStyle(fontSize: 11, color: colors.onSurface.withValues(alpha: 0.4))),
-                    ])),
-                FilledButton.icon(onPressed: _saveNote,
-                  icon: const Icon(Icons.check, size: 16), label: Text('保存'.tr),
-                  style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
-                const SizedBox(width: 16),
-              ]),
-            ),
-            // 标题输入 — 与编辑页一致
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 720),
-                child: TextField(controller: _titleController, maxLines: 1,
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: colors.onSurface, height: 1.4),
-                  decoration: InputDecoration(hintText: '添加标题'.tr,
-                    hintStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: colors.onSurface.withValues(alpha: 0.2), height: 1.4),
-                    border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                  onChanged: (_) => setState(() {})),
-              )),
-            ),
-            // 标签行 — 与编辑页一致
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 720),
-                child: Align(alignment: Alignment.centerLeft, child: _buildTagChips()),
-              )),
-            ),
-            // 内容编辑
-            Expanded(
-              child: NoteEditor(
-                key: _editorKey,
-                initialContent: _contentController.text,
-                onContentChanged: (value) {
-                  _contentController.text = value;
-                  _onTextChanged();
-                },
-              ),
-            ),
-            // 图片网格
-            if (_images.isNotEmpty) _buildEditImageGrid(colors),
-            // 底部字数
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                Text('{n} 字'.trf({'n': _contentController.text.length}), style: TextStyle(fontSize: 11, color: colors.onSurface.withValues(alpha: 0.3))),
-              ]),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Windows 桌面端图片网格 — 与编辑页一致
-  Widget _buildEditImageGrid(ColorScheme colors) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-      height: 72,
-      child: ListView.separated(scrollDirection: Axis.horizontal,
-        itemCount: _images.length + 1,
-        separatorBuilder: (_, __) => const SizedBox(width: 6),
-        itemBuilder: (ctx, i) {
-          if (i < _images.length) {
-            return Stack(children: [
-              InkWell(onTap: () => _showImagePreview(i),
-                child: Container(width: 56, height: 56,
-                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(6), border: Border.all(color: colors.outlineVariant, width: 0.5)),
-                  clipBehavior: Clip.antiAlias,
-                  child: FadeInLocalImage(path: _images[i], fit: BoxFit.cover))),
-              Positioned(top: -4, right: -4,
-                child: GestureDetector(onTap: () => setState(() => _images.removeAt(i)),
-                  child: Container(width: 16, height: 16,
-                    decoration: BoxDecoration(color: colors.surface, shape: BoxShape.circle, border: Border.all(color: colors.outline)),
-                    child: Icon(Icons.close, size: 10, color: colors.onSurface.withValues(alpha: 0.5))))),
-            ]);
-          }
-          return InkWell(onTap: _pickImage,
-            child: Container(width: 56, height: 56,
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(6), color: colors.surfaceContainerHighest,
-                border: Border.all(color: colors.outlineVariant)),
-              child: Icon(Icons.add_photo_alternate_outlined, size: 20, color: colors.onSurface.withValues(alpha: 0.3))));
-        }),
     );
   }
 

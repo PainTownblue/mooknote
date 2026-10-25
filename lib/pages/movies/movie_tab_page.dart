@@ -15,11 +15,9 @@ import '../../widgets/shimmer_skeleton.dart';
 import '../../widgets/top_fade_scrim.dart';
 import '../../widgets/fade_in_local_image.dart';
 import '../../utils/responsive.dart';
-import '../../widgets/master_detail_scaffold.dart';
-import '../../widgets/detail_placeholder.dart';
-import 'movie_detail_page.dart';
-import 'movie_add_page.dart';
 import '../../widgets/app_overlay.dart';
+import '../../widgets/detail_popup.dart';
+import 'movie_detail_page.dart';
 import '../../l10n/app_strings.dart';
 
 /// 状态索引 → 状态值
@@ -74,11 +72,10 @@ class _MovieTabPageState extends State<MovieTabPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isWideContent = Breakpoint.isWideContent(context);
     final provider = context.watch<AppProvider>();
     final isWallMode = provider.movieWallMode;
 
-    final masterContent = Column(
+    return Column(
       children: [
         if (!isWallMode)
           provider.movieDisplayMode == 1
@@ -93,19 +90,6 @@ class _MovieTabPageState extends State<MovieTabPage> {
           ),
         ),
       ],
-    );
-
-    if (!isWideContent) return masterContent;
-
-    final selectedMovie = provider.selectedMovie;
-    final detailWidget = provider.isAdding && provider.addingType == 0
-        ? MovieAddPage(onCancel: () => provider.cancelAdding())
-        : selectedMovie != null
-            ? MovieDetailPage(movie: selectedMovie, embedded: true)
-            : DetailPlaceholder(icon: Icons.movie_outlined, message: '选择一部影片查看详情'.tr);
-    return MasterDetailScaffold(
-      master: masterContent,
-      detail: detailWidget,
     );
   }
 
@@ -393,8 +377,8 @@ class _MovieTabViewState extends State<_MovieTabView>
   }
 
   void _onMovieTap(Movie movie) {
-    if (Breakpoint.isWideContent(context)) {
-      context.read<AppProvider>().selectMovie(movie);
+    if (Breakpoint.isTablet(context)) {
+      showDetailPopup(context, MovieDetailPage(movie: movie, embedded: true));
     } else {
       Navigator.pushNamed(context, '/movie-detail', arguments: movie);
     }
@@ -444,8 +428,6 @@ class _MovieTabViewState extends State<_MovieTabView>
         final crossAxisCount = fixedCount > 0
             ? fixedCount
             : responsiveCrossAxisCount(constraints.maxWidth, minItemWidth: 110);
-        final isWideContent = Breakpoint.isWideContent(context);
-        final provider = context.read<AppProvider>();
         return GridView.builder(
           controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
@@ -459,7 +441,6 @@ class _MovieTabViewState extends State<_MovieTabView>
             final item = _items[index];
             return MovieListItem(
               movie: item,
-              selected: isWideContent && provider.selectedMovie?.id == item.id,
               onTap: () => _onMovieTap(item),
             );
           },
@@ -484,8 +465,6 @@ class _MovieTabViewState extends State<_MovieTabView>
   /// 年份网格：按上映年份倒序分段，无年份归入"其他"
   Widget _buildYearGridView() {
     final fixedCount = context.select<AppProvider, int>((p) => p.movieGridCount);
-    final isWideContent = Breakpoint.isWideContent(context);
-    final provider = context.read<AppProvider>();
     return YearGridView<Movie>(
       items: _items,
       yearOf: (m) => m.releaseDate?.year,
@@ -495,7 +474,6 @@ class _MovieTabViewState extends State<_MovieTabView>
       loadMoreIndicator: _buildLoadMoreIndicator(),
       itemBuilder: (m) => MovieListItem(
         movie: m,
-        selected: isWideContent && provider.selectedMovie?.id == m.id,
         onTap: () => _onMovieTap(m),
       ),
     );

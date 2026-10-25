@@ -9,7 +9,6 @@ import 'package:uuid/uuid.dart';
 import '../../models/data_models.dart';
 import '../../providers/app_provider.dart';
 import '../../data/custom_module/custom_module_design_dao.dart';
-import '../../utils/platform_utils.dart';
 import '../../utils/toast_util.dart';
 import '../../widgets/app_overlay.dart';
 import '../../l10n/app_strings.dart';
@@ -301,16 +300,8 @@ class _CustomModuleDesignListPageState extends State<CustomModuleDesignListPage>
       };
       final content = const JsonEncoder.withIndent('  ').convert(payload);
       final fileName = '表单设计_${design.name}.json';
-      if (PlatformUtils.isDesktop) {
-        final savePath = await FilePicker.platform.saveFile(
-          dialogTitle: '导出表单设计'.tr,
-          fileName: fileName,
-        );
-        if (savePath == null) return;
-        await File(savePath).writeAsString(content);
-        if (mounted) ToastUtil.show(context, '已导出'.tr);
-      } else {
-        // Android：直接写入 /sdcard/Download/mooknote/design/
+      // 直接写入 /sdcard/Download/mooknote/design/
+      {
         var status = await Permission.manageExternalStorage.status;
         if (!status.isGranted) {
           status = await Permission.manageExternalStorage.request();

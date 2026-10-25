@@ -32,7 +32,6 @@ String? _describeKey(String key) {
     'exportWithImages': 'Excel 导出是否附带图片（走服务器生成）',
     'homeModuleSwitchMode': '首页模块切换方式',
     'defaultMainTabIndex': '启动默认主标签，-1=不指定',
-    'showDesktopHomeTab': '桌面端是否显示"首页"标签',
     'noteLayoutStyle': '笔记列表布局样式',
     'noteSortMode': '笔记排序方式',
     'calendarDateMode': '日历按哪种日期归组（上映/记录）',

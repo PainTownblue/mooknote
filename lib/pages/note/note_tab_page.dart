@@ -8,11 +8,9 @@ import '../../widgets/note_list_item.dart';
 import '../../widgets/shimmer_skeleton.dart';
 import '../../widgets/fade_in_local_image.dart';
 import '../../utils/responsive.dart';
-import '../../widgets/master_detail_scaffold.dart';
-import '../../widgets/detail_placeholder.dart';
-import 'note_detail_page.dart';
-import 'note_add_page.dart';
 import '../../widgets/app_overlay.dart';
+import '../../widgets/detail_popup.dart';
+import 'note_detail_page.dart';
 import '../../l10n/app_strings.dart';
 
 /// 笔记标签页（分页 + 触底加载）
@@ -134,8 +132,8 @@ class _NoteTabPageState extends State<NoteTabPage> {
   }
 
   void _onNoteTap(Note note) {
-    if (Breakpoint.isWideContent(context)) {
-      context.read<AppProvider>().selectNote(note);
+    if (Breakpoint.isTablet(context)) {
+      showDetailPopup(context, NoteDetailPage(note: note, embedded: true));
     } else {
       Navigator.pushNamed(context, '/note-detail', arguments: note);
     }
@@ -149,31 +147,20 @@ class _NoteTabPageState extends State<NoteTabPage> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final isWideContent = Breakpoint.isWideContent(context);
     return Consumer<AppProvider>(builder: (context, provider, _) {
       if (_items.isEmpty && _isLoading) return _buildSkeleton();
       if (_items.isEmpty) {
         return RefreshIndicator(onRefresh: _refresh, color: colors.primary, backgroundColor: colors.surface,
             child: ListView(physics: const AlwaysScrollableScrollPhysics(), children: [_buildEmptyState(context)]));
       }
-      final masterContent = _buildContent(isWideContent);
-      if (!isWideContent) return masterContent;
-      final detailWidget = provider.isAdding && provider.addingType == 2
-          ? NoteAddPage(onCancel: () => provider.cancelAdding())
-          : provider.selectedNote != null
-              ? NoteDetailPage(note: provider.selectedNote!, embedded: true)
-              : DetailPlaceholder(icon: Icons.sticky_note_2_outlined, message: '选择一条笔记查看详情'.tr);
-      return MasterDetailScaffold(
-        master: masterContent,
-        detail: detailWidget,
-      );
+      return _buildContent();
     });
   }
 
-  Widget _buildContent(bool isWideContent) {
-    if (_layoutStyle == 1) return _buildWaterfallView(isWideContent);
-    if (_layoutStyle == 2) return _buildTimelineView(isWideContent);
-    return _buildListView(isWideContent);
+  Widget _buildContent() {
+    if (_layoutStyle == 1) return _buildWaterfallView();
+    if (_layoutStyle == 2) return _buildTimelineView();
+    return _buildListView();
   }
 
   Widget _buildSkeleton() {
@@ -204,7 +191,7 @@ class _NoteTabPageState extends State<NoteTabPage> {
     );
   }
 
-  Widget _buildListView(bool isWideContent) {
+  Widget _buildListView() {
     final colors = Theme.of(context).colorScheme;
     return RefreshIndicator(onRefresh: _refresh, color: colors.primary, backgroundColor: colors.surface,
       child: ListView.builder(controller: _scrollController, physics: const AlwaysScrollableScrollPhysics(),
@@ -212,14 +199,13 @@ class _NoteTabPageState extends State<NoteTabPage> {
         itemCount: _items.length + (_hasMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index >= _items.length) return _buildLoadMore();
-          final selectedId = context.read<AppProvider>().selectedNote?.id;
-          return NoteListItem(note: _items[index], selected: isWideContent && selectedId == _items[index].id, onTap: () => _onNoteTap(_items[index]));
+          return NoteListItem(note: _items[index], onTap: () => _onNoteTap(_items[index]));
         },
       ),
     );
   }
 
-  Widget _buildTimelineView(bool isWideContent) {
+  Widget _buildTimelineView() {
     final colors = Theme.of(context).colorScheme;
     return RefreshIndicator(onRefresh: _refresh, color: colors.primary, backgroundColor: colors.surface,
       child: ListView.builder(controller: _scrollController, physics: const AlwaysScrollableScrollPhysics(),
@@ -278,7 +264,7 @@ class _NoteTabPageState extends State<NoteTabPage> {
   String _formatFullDate(DateTime date) =>
       '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
 
-  Widget _buildWaterfallView(bool isWideContent) {
+  Widget _buildWaterfallView() {
     return LayoutBuilder(builder: (context, constraints) {
       final colCount = responsiveCrossAxisCount(constraints.maxWidth, minItemWidth: 160, minCount: 2, maxCount: 4);
       // MasonryGridView 按需构建卡片，替代原来一次性展开全部笔记的 Row+Column

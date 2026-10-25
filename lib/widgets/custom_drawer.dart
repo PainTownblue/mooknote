@@ -83,8 +83,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
   void initState() {
     super.initState();
     _loadVersionInfo();
-    // 抽屉可能以已打开状态被重建，此时也延迟构建重内容
-    if (widget.isOpen) _scheduleDefer();
+    // 抽屉可能以已打开状态被重建，此时也延迟构建重内容；
+    // embedded（平板常驻侧边栏）始终可见，同样需要调度
+    if (widget.isOpen || widget.embedded) _scheduleDefer();
   }
 
   Timer? _deferTimer;

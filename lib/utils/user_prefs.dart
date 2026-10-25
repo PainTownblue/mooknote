@@ -212,10 +212,6 @@ class UserPrefs {
   int get defaultMainTabIndex => prefs.getInt('defaultMainTabIndex') ?? -1;
   Future<bool> setDefaultMainTabIndex(int value) => prefs.setInt('defaultMainTabIndex', value);
 
-  /// 桌面端是否显示主页标签
-  bool get showDesktopHomeTab => prefs.getBool('showDesktopHomeTab') ?? true;
-  Future<bool> setShowDesktopHomeTab(bool value) => prefs.setBool('showDesktopHomeTab', value);
-
   // ─── 侧边栏功能开关 ───
 
   bool get showSidebarHeatmap => prefs.getBool('showSidebarHeatmap') ?? true;

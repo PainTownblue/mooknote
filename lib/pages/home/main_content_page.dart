@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/app_provider.dart';
 import '../../utils/user_prefs.dart';
-import '../../utils/responsive.dart';
 import '../../services/sync/webdav_service.dart';
 import '../../services/sync/incremental/inc_sync_service.dart';
 import '../movies/movie_tab_page.dart';
@@ -83,11 +82,9 @@ class _MainContentPageState extends State<MainContentPage> {
           children: [
             Column(
               children: [
-                if (!Breakpoint.isDesktop(context)) ...[
-                  _buildAppBar(context, isDropdown),
-                  // 只剩一个模块时，顶部模块分类栏没有显示必要
-                  if (!isDropdown && _enabledTabs.length > 1) _buildTabBar(context),
-                ],
+                _buildAppBar(context, isDropdown),
+                // 只剩一个模块时，顶部模块分类栏没有显示必要
+                if (!isDropdown && _enabledTabs.length > 1) _buildTabBar(context),
                 Expanded(child: _buildTabContent()),
               ],
             ),

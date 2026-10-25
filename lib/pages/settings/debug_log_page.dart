@@ -1,14 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../l10n/app_strings.dart';
 import '../../services/log_service.dart';
 import '../../services/report_service.dart';
-import '../../utils/platform_utils.dart';
 import '../../utils/toast_util.dart';
 
 /// 调试日志页：查看运行日志，支持按时间段筛选、导出保存、清空
@@ -111,15 +109,7 @@ class _DebugLogPageState extends State<DebugLogPage> {
         '${two(now.hour)}${two(now.minute)}${two(now.second)}';
     final fileName = 'mooknote_log_$stamp.txt';
     try {
-      if (PlatformUtils.isDesktop) {
-        final path = await FilePicker.platform.saveFile(
-          dialogTitle: '保存日志'.tr,
-          fileName: fileName,
-        );
-        if (path == null) return;
-        await File(path).writeAsString(content);
-        if (mounted) ToastUtil.show(context, '日志已保存'.tr);
-      } else {
+      {
         final dir = Directory('/sdcard/Download/mooknote');
         await dir.create(recursive: true);
         final file = File('${dir.path}/$fileName');
