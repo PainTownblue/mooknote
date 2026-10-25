@@ -110,10 +110,12 @@ const Map<String, String> enExploreNote = {
   // ── 日历 ──
   '创建日期': 'Date Created',
   '观看/阅读': 'Watched/Read',
+  '日期类型': 'Date Type',
   '书影日历': 'Media Calendar',
   '{y}年{m}': '{y} {m}',
   '{m}月{d}日  暂无记录': '{m}/{d}  No records',
   '{m}月{d}日': '{m}/{d}',
+  '这一天还没有记录': 'No entries on this day',
   '{n}条记录': '{n} records',
   '添加记录': 'Add Entry',
   '添加影视': 'Add Movie',
@@ -224,6 +226,11 @@ const Map<String, String> enExploreNote = {
   '暂无已阅记录': 'No reviewed items yet',
   '均分': 'Avg',
   '年份': 'Year',
+  '今年': 'This Year',
+  '去年': 'Last Year',
+  '筛选': 'Filter',
+  '清除': 'Clear',
+  '暂无选项': 'No options',
   '{y}年{m}月{d}日 {w}': '{y}/{m}/{d} {w}',
 
   // 补齐：图表月份轴

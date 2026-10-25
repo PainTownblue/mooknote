@@ -13,6 +13,13 @@ import '../../l10n/app_strings.dart';
 
 enum _ItemType { movie, book, game }
 
+class _GenreGroup {
+  final _ItemType type;
+  final List<String> genres;
+  final Color color;
+  _GenreGroup(this.type, this.genres, this.color);
+}
+
 class _ReviewedItem {
   final String id;
   final String title;
@@ -39,13 +46,6 @@ class _ReviewedItem {
   });
 }
 
-class _GenreGroup {
-  final _ItemType type;
-  final List<String> genres;
-  final Color color;
-  _GenreGroup(this.type, this.genres, this.color);
-}
-
 class ReviewedPage extends StatefulWidget {
   const ReviewedPage({super.key});
 
@@ -70,7 +70,8 @@ class _ReviewedPageState extends State<ReviewedPage> {
           appBar: AppBar(
             title: Text('已阅'.tr),
             actions: [
-              if (allItems.isNotEmpty)
+              if (allItems.isNotEmpty) ...[
+                _buildFilterButton(years, allItems, context),
                 IconButton(
                   icon: Icon(UserPrefs().reviewedLayoutStyle == 1 ? Icons.view_list_outlined : Icons.grid_view_outlined, size: 20),
                   onPressed: () {
@@ -79,15 +80,16 @@ class _ReviewedPageState extends State<ReviewedPage> {
                     setState(() {});
                   },
                 ),
+                const SizedBox(width: 4),
+              ],
             ],
           ),
           body: Column(
             children: [
               // 统计概览（固定）
               _buildStatsHeader(allItems, filtered, context),
-              // 筛选栏（固定）
-              if (allItems.isNotEmpty)
-                _buildFilterBar(years, allItems, context),
+              // 激活的筛选条件提示条
+              if (_activeFilterLabel != null) _buildActiveFilterBar(context),
               // 列表（可滚动）
               Expanded(
                 child: filtered.isEmpty
@@ -114,10 +116,39 @@ class _ReviewedPageState extends State<ReviewedPage> {
   // ─── 列表视图 ─────────────────────────────────────────────────────
 
   Widget _buildListView(BuildContext context, List<_ReviewedItem> filtered) {
-    return ListView.builder(
-      padding: const EdgeInsets.only(top: 8, bottom: 16),
-      itemCount: filtered.length,
-      itemBuilder: (context, index) => _buildListItem(context, filtered[index]),
+    // 按录入年份分组（今年 / 去年 / yyyy年），同年内保持原排序
+    final groups = <int, List<_ReviewedItem>>{};
+    for (final item in filtered) {
+      groups.putIfAbsent(item.createdAt.year, () => []).add(item);
+    }
+    final years = groups.keys.toList()..sort((a, b) => b.compareTo(a));
+    final nowYear = DateTime.now().year;
+
+    final children = <Widget>[];
+    for (final y in years) {
+      final label = y == nowYear ? '今年'.tr : (y == nowYear - 1 ? '去年'.tr : '$y年');
+      children.add(Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface)),
+            const SizedBox(width: 8),
+            Text(
+              '{n}部'.trf({'n': groups[y]!.length}),
+              style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.35)),
+            ),
+          ],
+        ),
+      ));
+      children.addAll(groups[y]!.map((item) => _buildListItem(context, item)));
+    }
+    children.add(const SizedBox(height: 12));
+
+    return ListView(
+      padding: const EdgeInsets.only(top: 2, bottom: 12),
+      children: children,
     );
   }
 
@@ -221,97 +252,98 @@ class _ReviewedPageState extends State<ReviewedPage> {
     final movieCount = all.where((i) => i.type == _ItemType.movie).length;
     final bookCount = all.where((i) => i.type == _ItemType.book).length;
     final gameCount = all.where((i) => i.type == _ItemType.game).length;
-    final avgRating = filtered.isNotEmpty
-        ? filtered.where((i) => i.rating != null).map((i) => i.rating!).toList()
-        : <double>[];
-    final avg = avgRating.isNotEmpty
-        ? (avgRating.reduce((a, b) => a + b) / avgRating.length).toStringAsFixed(1)
-        : '--';
+    final ratings = filtered.where((i) => i.rating != null).map((i) => i.rating!).toList();
+    final avg = ratings.isEmpty
+        ? '--'
+        : (ratings.reduce((a, b) => a + b) / ratings.length).toStringAsFixed(1);
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 2),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(14),
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: colors.onSurface.withValues(alpha: 0.06), width: 0.7),
       ),
-      child: Column(
+      child: Row(
         children: [
-          // 第一行：总数 + 评分
-          _FadeEdgeScrollView(
-            colors: colors,
-            fadeColor: colors.surfaceContainerLow,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildStatItem('${filtered.length}', '已阅'.tr, colors.primary, Icons.done_all_rounded, colors),
-                  _buildStatDivider(colors),
-                  _buildStatItem(avg, '均分'.tr, Colors.amber, Icons.star_rounded, colors),
-                  _buildStatDivider(colors),
-                  // 分类计数
-                  _buildMiniCategory('影视'.tr, movieCount, Colors.blue, _ItemType.movie, colors),
-                  const SizedBox(width: 12),
-                  _buildMiniCategory('书籍'.tr, bookCount, Colors.teal, _ItemType.book, colors),
-                  const SizedBox(width: 12),
-                  _buildMiniCategory('游戏'.tr, gameCount, Colors.orange, _ItemType.game, colors),
-                ],
-              ),
-            ),
+          _buildBigStat('${filtered.length}', '已阅'.tr, colors.primary, colors),
+          const SizedBox(width: 18),
+          _buildBigStat(avg, '均分'.tr, Colors.amber, colors),
+          Container(
+            width: 1,
+            height: 32,
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            color: colors.outlineVariant.withValues(alpha: 0.5),
+          ),
+          const Spacer(),
+          Row(
+            children: [
+              _buildMiniType('影视'.tr, movieCount, Colors.blue, _ItemType.movie, colors),
+              const SizedBox(width: 14),
+              _buildMiniType('书籍'.tr, bookCount, Colors.teal, _ItemType.book, colors),
+              const SizedBox(width: 14),
+              _buildMiniType('游戏'.tr, gameCount, Colors.orange, _ItemType.game, colors),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatItem(String value, String label, Color color, IconData icon, ColorScheme colors) {
-    return Row(
+  Widget _buildBigStat(String value, String label, Color accent, ColorScheme colors) {
+    return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: 4),
-        Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: colors.onSurface)),
-        const SizedBox(width: 3),
-        Text(label, style: TextStyle(fontSize: 10, color: colors.onSurface.withValues(alpha: 0.4))),
+        Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, height: 1.0, color: accent)),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 10.5, color: colors.onSurface.withValues(alpha: 0.42))),
       ],
     );
   }
 
-  Widget _buildStatDivider(ColorScheme colors) {
-    return Container(
-      width: 1,
-      height: 20,
-      margin: const EdgeInsets.symmetric(horizontal: 10),
-      color: colors.outlineVariant.withValues(alpha: 0.5),
-    );
-  }
-
-  Widget _buildMiniCategory(String label, int count, Color color, _ItemType type, ColorScheme colors) {
+  /// 统计条右侧：点击即按类型筛选
+  Widget _buildMiniType(String label, int count, Color color, _ItemType type, ColorScheme colors) {
     final selected = _selectedType == type;
     return GestureDetector(
-      onTap: () => setState(() => _selectedType = selected ? null : type),
-      child: Row(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() {
+        _selectedType = selected ? null : type;
+        // 切换类型后清空标签选择，避免筛出空列表
+        _selectedGenre = null;
+      }),
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: selected ? color : color.withValues(alpha: 0.4),
+          Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 16,
+              height: 1.0,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              color: selected ? color : colors.onSurface.withValues(alpha: 0.55),
             ),
           ),
-          const SizedBox(width: 4),
-          Text('$count',
+          const SizedBox(height: 4),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color.withValues(alpha: selected ? 1 : 0.4),
+              ),
+            ),
+            const SizedBox(width: 3),
+            Text(
+              label,
               style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  color: selected ? color : colors.onSurface.withValues(alpha: 0.6))),
-          const SizedBox(width: 1),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 10,
-                  color: selected ? color : colors.onSurface.withValues(alpha: 0.35))),
+                fontSize: 10.5,
+                color: selected ? color : colors.onSurface.withValues(alpha: 0.4),
+              ),
+            ),
+          ]),
         ],
       ),
     );
@@ -319,122 +351,299 @@ class _ReviewedPageState extends State<ReviewedPage> {
 
   // ─── 筛选栏 ───────────────────────────────────────────────────────
 
-  Widget _buildFilterBar(List<int> years, List<_ReviewedItem> allItems, BuildContext context) {
+  // ─── 筛选弹窗 ───────────────────────────────────────────────────────
+
+  bool get _hasActiveFilter => _selectedYear != null || _selectedType != null || _selectedGenre != null;
+
+  String? get _activeFilterLabel {
+    if (!_hasActiveFilter) return null;
+    final parts = <String>[];
+    if (_selectedType != null) {
+      parts.add(switch (_selectedType!) {
+        _ItemType.movie => '影视'.tr,
+        _ItemType.book => '书籍'.tr,
+        _ItemType.game => '游戏'.tr,
+      });
+    }
+    if (_selectedYear != null) parts.add('$_selectedYear');
+    if (_selectedGenre != null) parts.add(_selectedGenre!);
+    return parts.join(' · ');
+  }
+
+  Widget _buildFilterButton(List<int> years, List<_ReviewedItem> allItems, BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return IconButton(
+      tooltip: '筛选'.tr,
+      icon: Icon(
+        _hasActiveFilter ? Icons.tune_rounded : Icons.tune_outlined,
+        size: 20,
+        color: _hasActiveFilter ? colors.primary : colors.onSurface.withValues(alpha: 0.7),
+      ),
+      onPressed: () => _showFilterSheet(years, allItems),
+    );
+  }
+
+  Widget _buildActiveFilterBar(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 2, 14, 0),
+        child: GestureDetector(
+          onTap: () => setState(() {
+            _selectedYear = null;
+            _selectedType = null;
+            _selectedGenre = null;
+          }),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: colors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.filter_alt_rounded, size: 12, color: colors.primary),
+                const SizedBox(width: 5),
+                Text(_activeFilterLabel!, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colors.primary)),
+                const SizedBox(width: 4),
+                Icon(Icons.close_rounded, size: 13, color: colors.primary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 筛选弹窗当前模块：0 年份，1 影视，2 书籍，3 游戏
+  int _filterTab = 0;
+
+  void _showFilterSheet(List<int> years, List<_ReviewedItem> allItems) {
     final colors = Theme.of(context).colorScheme;
     final genreGroups = _buildGenreGroups(allItems);
-    if (genreGroups.isEmpty && years.isEmpty) return const SizedBox.shrink();
+    final typeOfTab = [null, _ItemType.movie, _ItemType.book, _ItemType.game];
 
-    return Container(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 各分类类型筛选，每个分类一行
-          for (final group in genreGroups)
-            Container(
-              height: 30,
-              margin: EdgeInsets.fromLTRB(16, genreGroups.indexOf(group) == 0 ? 8 : 4, 0, 0),
-              child: Row(
+    // 默认打开与当前筛选相关的模块
+    if (_selectedGenre != null) {
+      _filterTab = switch (_selectedType) {
+        _ItemType.book => 2,
+        _ItemType.game => 3,
+        _ => 1,
+      };
+    } else if (_selectedType != null) {
+      _filterTab = switch (_selectedType!) {
+        _ItemType.movie => 1,
+        _ItemType.book => 2,
+        _ItemType.game => 3,
+      };
+    } else {
+      _filterTab = 0;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colors.surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, sheetSetState) {
+            void choose(VoidCallback action) {
+              setState(action);
+              sheetSetState(() {});
+            }
+
+            final tabs = <(String, IconData)>[
+              ('年份'.tr, Icons.calendar_today_outlined),
+              ('影视'.tr, Icons.movie_outlined),
+              ('书籍'.tr, Icons.menu_book_outlined),
+              ('游戏'.tr, Icons.sports_esports_outlined),
+            ];
+
+            return SafeArea(
+              child: SizedBox(
+                height: MediaQuery.of(sheetContext).size.height * 0.62,
+                child: Column(
                 children: [
-                  _buildTypeTag(group.type, colors),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: _FadeEdgeScrollView(
-                      colors: colors,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.only(right: 16),
-                        children: [
-                          for (final genre in group.genres) ...[
-                            _buildFilterChip(genre, genre, colors,
-                                color: group.color,
-                                isSelected: _selectedGenre == genre,
-                                onTap: () => setState(() => _selectedGenre = _selectedGenre == genre ? null : genre)),
-                            const SizedBox(width: 5),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          // 年份筛选
-          if (years.isNotEmpty)
-            Container(
-              height: 30,
-              margin: const EdgeInsets.only(top: 4),
-              child: Row(
-                children: [
+                  Container(width: 36, height: 4, margin: const EdgeInsets.only(top: 12, bottom: 10),
+                      decoration: BoxDecoration(color: colors.onSurface.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(2))),
                   Padding(
-                    padding: const EdgeInsets.only(left: 16),
-                    child: _buildTypeTag(null, colors),
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        Text('筛选'.tr, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: colors.onSurface)),
+                        const Spacer(),
+                        if (_hasActiveFilter)
+                          GestureDetector(
+                            onTap: () => choose(() {
+                              _selectedYear = null;
+                              _selectedType = null;
+                              _selectedGenre = null;
+                            }),
+                            child: Text('清除'.tr, style: TextStyle(fontSize: 13, color: colors.primary)),
+                          ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(width: 5),
+                  const SizedBox(height: 12),
+                  // 顶部模块切换
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        for (var i = 0; i < tabs.length; i++)
+                          Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.only(right: i == tabs.length - 1 ? 0 : 8),
+                              child: _buildSheetTab(
+                                label: tabs[i].$1,
+                                icon: tabs[i].$2,
+                                active: _filterTab == i,
+                                colors: colors,
+                                onTap: () => sheetSetState(() => _filterTab = i),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // 当前模块内容：药丸自动换行，区域固定高度、超出纵滚
                   Expanded(
-                    child: _FadeEdgeScrollView(
-                      colors: colors,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.only(right: 16),
-                        children: [
-                          for (final year in years) ...[
-                            _buildFilterChip(year, '$year', colors, isSelected: _selectedYear == year, onTap: () => setState(() => _selectedYear = _selectedYear == year ? null : year)),
-                            const SizedBox(width: 5),
-                          ],
-                        ],
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: SingleChildScrollView(
+                        child: _buildSheetPillWrap(
+                          colors: colors,
+                          tab: _filterTab,
+                          years: years,
+                          group: _genreGroupFor(genreGroups, typeOfTab[_filterTab]),
+                          onChoose: choose,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        child: Text('完成'.tr),
                       ),
                     ),
                   ),
                 ],
+                ),
               ),
-            ),
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
-  Widget _buildTypeTag(_ItemType? type, ColorScheme colors) {
-    final (label, color) = switch (type) {
-      _ItemType.movie => ('影视', Colors.blue),
-      _ItemType.book => ('书籍', Colors.teal),
-      _ItemType.game => ('游戏', Colors.orange),
-      null => ('年份', colors.onSurface.withValues(alpha: 0.5)),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Center(
-        child: Text(label.tr,
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color)),
-      ),
-    );
+  _GenreGroup? _genreGroupFor(List<_GenreGroup> groups, _ItemType? type) {
+    for (final g in groups) {
+      if (g.type == type) return g;
+    }
+    return null;
   }
 
-  Widget _buildFilterChip(dynamic key, String label, ColorScheme colors, {Color? color, required bool isSelected, required VoidCallback onTap}) {
-    final chipColor = color ?? colors.primary;
+  Widget _buildSheetTab({
+    required String label,
+    required IconData icon,
+    required bool active,
+    required ColorScheme colors,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 72),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 9),
         decoration: BoxDecoration(
-          color: isSelected ? chipColor : colors.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(14),
+          color: active ? colors.primary : colors.surfaceContainerHighest.withValues(alpha: 0.7),
+          borderRadius: BorderRadius.circular(12),
         ),
-        child: Center(
-          child: Text(label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 15, color: active ? colors.onPrimary : colors.onSurface.withValues(alpha: 0.5)),
+            const SizedBox(width: 5),
+            Text(
+              label,
               style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                  color: isSelected ? colors.onPrimary : colors.onSurface.withValues(alpha: 0.5))),
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: active ? colors.onPrimary : colors.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  /// 当前模块的药丸：自动换行（一行排满换下一行）
+  Widget _buildSheetPillWrap({
+    required ColorScheme colors,
+    required int tab,
+    required List<int> years,
+    required _GenreGroup? group,
+    required void Function(VoidCallback) onChoose,
+  }) {
+    final pills = <Widget>[];
+
+    if (tab == 0) {
+      for (final year in years) {
+        pills.add(_buildFilterChip(year, '$year', colors,
+            isSelected: _selectedYear == year,
+            onTap: () => onChoose(() => _selectedYear = _selectedYear == year ? null : year)));
+      }
+    } else if (group != null) {
+      // 该类型的「全部」药丸：只按类型筛选，不限标签
+      final allSelected = _selectedType == group.type && _selectedGenre == null;
+      pills.add(_buildFilterChip(null, '全部'.tr, colors,
+          color: group.color,
+          isSelected: allSelected,
+          onTap: () => onChoose(() {
+                _selectedType = allSelected ? null : group.type;
+                _selectedGenre = null;
+              })));
+      for (final genre in group.genres) {
+        pills.add(_buildFilterChip(genre, genre, colors,
+            color: group.color,
+            isSelected: _selectedType == group.type && _selectedGenre == genre,
+            onTap: () => onChoose(() {
+                  // 已选中则取消；否则同时锁定类型 + 标签
+                  if (_selectedType == group.type && _selectedGenre == genre) {
+                    _selectedType = null;
+                    _selectedGenre = null;
+                  } else {
+                    _selectedType = group.type;
+                    _selectedGenre = genre;
+                  }
+                })));
+      }
+    }
+
+    if (pills.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 40),
+        child: Center(
+          child: Text('暂无选项'.tr, style: TextStyle(fontSize: 13, color: colors.onSurface.withValues(alpha: 0.35))),
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 10,
+      children: pills,
     );
   }
 
@@ -453,10 +662,31 @@ class _ReviewedPageState extends State<ReviewedPage> {
       }
     }
     final groups = <_GenreGroup>[];
-    if (movieGenres.isNotEmpty) groups.add(_GenreGroup(_ItemType.movie, movieGenres.toList()..sort(), Colors.blue));
-    if (bookGenres.isNotEmpty) groups.add(_GenreGroup(_ItemType.book, bookGenres.toList()..sort(), Colors.teal));
-    if (gameGenres.isNotEmpty) groups.add(_GenreGroup(_ItemType.game, gameGenres.toList()..sort(), Colors.orange));
+    groups.add(_GenreGroup(_ItemType.movie, movieGenres.toList()..sort(), Colors.blue));
+    groups.add(_GenreGroup(_ItemType.book, bookGenres.toList()..sort(), Colors.teal));
+    groups.add(_GenreGroup(_ItemType.game, gameGenres.toList()..sort(), Colors.orange));
     return groups;
+  }
+
+  Widget _buildFilterChip(dynamic key, String label, ColorScheme colors, {Color? color, required bool isSelected, required VoidCallback onTap}) {
+    final chipColor = color ?? colors.primary;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? chipColor : colors.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                color: isSelected ? colors.onPrimary : colors.onSurface.withValues(alpha: 0.55))),
+      ),
+    );
   }
 
   // ─── 数据构建 ─────────────────────────────────────────────────────
@@ -542,106 +772,97 @@ class _ReviewedPageState extends State<ReviewedPage> {
       _ItemType.book => Colors.teal,
       _ItemType.game => Colors.orange,
     };
-    final typeLabel = switch (item.type) {
-      _ItemType.movie => '影视',
-      _ItemType.book => '书籍',
-      _ItemType.game => '游戏',
-    };
 
-    return InkWell(
-      onTap: () {
-        final page = switch (item.type) {
-          _ItemType.movie => MovieDetailPage(movie: item.original as Movie),
-          _ItemType.book => BookDetailPage(book: item.original as Book),
-          _ItemType.game => GameDetailPage(game: item.original as Game),
-        };
-        Navigator.push(context, MaterialPageRoute(builder: (_) => page));
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colors.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 封面
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: SizedBox(
-                width: 60,
-                height: 80,
-                child: item.coverPath != null && item.coverPath!.isNotEmpty
-                    ? FadeInLocalImage(
-                        path: item.coverPath,
-                        fit: BoxFit.cover,
-                        placeholder: _buildPlaceholder(item.type, colors),
-                        errorWidget: _buildPlaceholder(item.type, colors),
-                      )
-                    : _buildPlaceholder(item.type, colors),
-              ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: () {
+            final page = switch (item.type) {
+              _ItemType.movie => MovieDetailPage(movie: item.original as Movie),
+              _ItemType.book => BookDetailPage(book: item.original as Book),
+              _ItemType.game => GameDetailPage(game: item.original as Game),
+            };
+            Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+          },
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(10, 10, 14, 10),
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: colors.onSurface.withValues(alpha: 0.06), width: 0.7),
             ),
-            const SizedBox(width: 12),
-            // 信息
-            Expanded(
-              child: SizedBox(
-                height: 80,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 标题
-                    Text(item.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: colors.onSurface)),
-                    const SizedBox(height: 4),
-                    // 副标题
-                    if (item.subtitle.isNotEmpty)
-                      Text(item.subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: colors.onSurface.withValues(alpha: 0.45))),
-                    const Spacer(),
-                    // 底部：评分 + 类型标签 + 年份
-                    Row(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 类型色条
+                Container(
+                  width: 3,
+                  height: 90,
+                  margin: const EdgeInsets.only(right: 10),
+                  decoration: BoxDecoration(color: typeColor, borderRadius: BorderRadius.circular(2)),
+                ),
+                // 封面
+                Container(
+                  width: 64,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 6, offset: const Offset(0, 2)),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: item.coverPath != null && item.coverPath!.isNotEmpty
+                        ? FadeInLocalImage(
+                            path: item.coverPath,
+                            fit: BoxFit.cover,
+                            placeholder: _buildPlaceholder(item.type, colors),
+                            errorWidget: _buildPlaceholder(item.type, colors),
+                          )
+                        : _buildPlaceholder(item.type, colors),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // 信息
+                Expanded(
+                  child: SizedBox(
+                    height: 90,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (item.rating != null)
-                          AnimatedStarRating(rating: item.rating!, starSize: 11, showNumber: true)
-                        else
-                          Text('未评分'.tr, style: TextStyle(fontSize: 11, color: colors.onSurface.withValues(alpha: 0.25))),
+                        Text(item.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: colors.onSurface)),
+                        const SizedBox(height: 4),
+                        if (item.subtitle.isNotEmpty)
+                          Text(item.subtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 12, color: colors.onSurface.withValues(alpha: 0.45))),
                         const Spacer(),
-                        if (item.year != null)
-                          Text('${item.year}',
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  color: colors.onSurface.withValues(alpha: 0.3))),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: typeColor.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(typeLabel.tr,
-                              style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w500,
-                                  color: typeColor)),
+                        Row(
+                          children: [
+                            if (item.rating != null)
+                              AnimatedStarRating(rating: item.rating!, starSize: 11, showNumber: true)
+                            else
+                              Text('未评分'.tr, style: TextStyle(fontSize: 11, color: colors.onSurface.withValues(alpha: 0.25))),
+                            const Spacer(),
+                            if (item.year != null)
+                              Text('${item.year}',
+                                  style: TextStyle(fontSize: 11, color: colors.onSurface.withValues(alpha: 0.35))),
+                          ],
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -658,54 +879,6 @@ class _ReviewedPageState extends State<ReviewedPage> {
       child: Center(
           child: Icon(icon,
               size: 22, color: colors.onSurface.withValues(alpha: 0.25))),
-    );
-  }
-}
-
-/// 横向 ListView 左右渐变遮罩（用 Stack + 透明渐变覆盖层）
-class _FadeEdgeScrollView extends StatelessWidget {
-  final ColorScheme colors;
-  final Widget child;
-  final Color? fadeColor;
-  const _FadeEdgeScrollView({required this.colors, required this.child, this.fadeColor});
-
-  @override
-  Widget build(BuildContext context) {
-    final fade = fadeColor ?? colors.surface;
-    return Stack(
-      children: [
-        child,
-        // 左渐变
-        Positioned(
-          left: 0, top: 0, bottom: 0, width: 16,
-          child: IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  colors: [fade, fade.withValues(alpha: 0)],
-                ),
-              ),
-            ),
-          ),
-        ),
-        // 右渐变
-        Positioned(
-          right: 0, top: 0, bottom: 0, width: 16,
-          child: IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.centerRight,
-                  end: Alignment.centerLeft,
-                  colors: [fade, fade.withValues(alpha: 0)],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
