@@ -96,6 +96,7 @@ const Map<String, String> enWidgets = {
       'Storage permission required to export. Please grant "All files access" in Settings',
   '需要存储权限才能自动备份': 'Storage permission required for auto-backup',
   '片单': 'Playlists',
+  '无法识别该图片，请换一张 JPG/PNG 图片': 'Unrecognized image. Please choose a JPG or PNG file',
 
   // ── webdav_service ──
   '上传备份文件失败': 'Failed to upload backup file',

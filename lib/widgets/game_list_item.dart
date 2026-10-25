@@ -37,22 +37,26 @@ class GameListItem extends StatelessWidget {
           Expanded(
             child: _buildCoverWithDate(colors),
           ),
-          const SizedBox(height: 8),
-          Text(
-            game.title,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: Theme.of(context).colorScheme.onSurface,
+          if (UserPrefs().showGameTitle) ...[
+            const SizedBox(height: 8),
+            Text(
+              game.title,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 4),
-          if (game.rating != null)
-            AnimatedStarRating(rating: game.rating!, starSize: 12, showNumber: true)
-          else
-            const SizedBox(height: 16),
+          ],
+          if (UserPrefs().showGameRating) ...[
+            const SizedBox(height: 4),
+            if (game.rating != null)
+              AnimatedStarRating(rating: game.rating!, starSize: 12, showNumber: true)
+            else
+              const SizedBox(height: 16),
+          ],
         ],
       ),
       ),

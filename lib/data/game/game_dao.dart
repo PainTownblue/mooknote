@@ -60,6 +60,10 @@ class GameDao {
       case 1: return 'created_at DESC';
       case 2: return 'rating IS NULL, rating DESC, updated_at DESC';
       case 3: return 'release_date IS NULL, release_date DESC, created_at DESC';
+      case 4:
+        // 最近一次通关时间；无通关记录的排最后
+        return '(SELECT MAX(gc.completion_date) FROM game_completions gc WHERE gc.game_id = games.id AND gc.is_deleted = 0) IS NULL, '
+            '(SELECT MAX(gc.completion_date) FROM game_completions gc WHERE gc.game_id = games.id AND gc.is_deleted = 0) DESC, updated_at DESC';
       default: return 'updated_at DESC';
     }
   }

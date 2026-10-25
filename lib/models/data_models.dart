@@ -988,6 +988,71 @@ class GameScreenshot {
   }
 }
 
+/// 游戏通关记录模型（一个游戏可有多条）
+class GameCompletion {
+  final String id;
+  final String gameId;
+  final DateTime completionDate; // 通关时间
+  final String note; // 备注（难度/结局/心得，可空）
+  final bool isDeleted;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  GameCompletion({
+    required this.id,
+    required this.gameId,
+    required this.completionDate,
+    this.note = '',
+    this.isDeleted = false,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory GameCompletion.fromJson(Map<String, dynamic> json) {
+    return GameCompletion(
+      id: json['id']?.toString() ?? '',
+      gameId: json['game_id']?.toString() ?? '',
+      completionDate: _safeParseDate(json['completion_date'], fallback: DateTime.now())!,
+      note: json['note']?.toString() ?? '',
+      isDeleted: json['is_deleted'] == 1 || json['is_deleted'] == true,
+      createdAt: _safeParseDate(json['created_at'], fallback: DateTime.now())!,
+      updatedAt: _safeParseDate(json['updated_at'], fallback: DateTime.now())!,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'game_id': gameId,
+      'completion_date': completionDate.toUtc().toIso8601String(),
+      'note': note,
+      'is_deleted': isDeleted ? 1 : 0,
+      'created_at': createdAt.toUtc().toIso8601String(),
+      'updated_at': updatedAt.toUtc().toIso8601String(),
+    };
+  }
+
+  GameCompletion copyWith({
+    String? id,
+    String? gameId,
+    DateTime? completionDate,
+    String? note,
+    bool? isDeleted,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return GameCompletion(
+      id: id ?? this.id,
+      gameId: gameId ?? this.gameId,
+      completionDate: completionDate ?? this.completionDate,
+      note: note ?? this.note,
+      isDeleted: isDeleted ?? this.isDeleted,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
+
 /// 书籍摘抄模型
 class BookExcerpt {
   final String id;

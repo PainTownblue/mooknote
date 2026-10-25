@@ -384,6 +384,8 @@ class _BookTabViewState extends State<_BookTabView>
     super.build(context);
     final colors = Theme.of(context).colorScheme;
     final layoutStyle = context.select<AppProvider, int>((p) => p.bookLayoutStyle);
+    context.select<AppProvider, bool>((p) => p.showBookTitle);
+    context.select<AppProvider, bool>((p) => p.showBookRating);
 
     final content = () {
       if (_items.isEmpty && _isLoading) return _buildSkeleton(layoutStyle);
@@ -489,6 +491,8 @@ class _BookTabViewState extends State<_BookTabView>
 
   Widget _buildListCard(Book book) {
     final colors = Theme.of(context).colorScheme;
+    final showTitle = context.select<AppProvider, bool>((p) => p.showBookTitle);
+    final showRating = context.select<AppProvider, bool>((p) => p.showBookRating);
     return GestureDetector(
       onTap: () => _onBookTap(book),
       onLongPress: () => _showDeleteDialog(context, book),
@@ -508,16 +512,19 @@ class _BookTabViewState extends State<_BookTabView>
           ),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: colors.onSurface)),
+            if (showTitle)
+              Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: colors.onSurface)),
             if (book.authors.isNotEmpty) ...[
-              const SizedBox(height: 3),
+              SizedBox(height: showTitle ? 3 : 0),
               Text(book.authors.take(2).join('、'), maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 12, color: colors.onSurface.withValues(alpha: 0.35))),
             ],
-            const SizedBox(height: 6),
-            if (book.rating != null) AnimatedStarRating(rating: book.rating!, starSize: 12, showNumber: true)
-            else const SizedBox(height: 14),
+            if (showRating) ...[
+              const SizedBox(height: 6),
+              if (book.rating != null) AnimatedStarRating(rating: book.rating!, starSize: 12, showNumber: true)
+              else const SizedBox(height: 14),
+            ],
           ])),
           const SizedBox(width: 8),
           Icon(Icons.chevron_right, color: colors.onSurface.withValues(alpha: 0.2), size: 20),
@@ -543,6 +550,8 @@ class _BookTabViewState extends State<_BookTabView>
 
   Widget _buildCoverCard(Book book) {
     final colors = Theme.of(context).colorScheme;
+    final showTitle = context.select<AppProvider, bool>((p) => p.showBookTitle);
+    final showRating = context.select<AppProvider, bool>((p) => p.showBookRating);
     return GestureDetector(
       onTap: () => _onBookTap(book),
       onLongPress: () => _showDeleteDialog(context, book),
@@ -579,15 +588,17 @@ class _BookTabViewState extends State<_BookTabView>
           Positioned(
             left: 14, right: 14, bottom: 14,
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Colors.white)),
-              const SizedBox(height: 4),
+              if (showTitle) ...[
+                Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Colors.white)),
+                const SizedBox(height: 4),
+              ],
               Row(children: [
                 Expanded(
                   child: Text(book.authors.take(2).join('、'), maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.7))),
                 ),
-                if (book.rating != null) ...[
+                if (showRating && book.rating != null) ...[
                   const SizedBox(width: 8),
                   Icon(Icons.star_rounded, size: 16, color: Colors.amber.shade400),
                   const SizedBox(width: 2),

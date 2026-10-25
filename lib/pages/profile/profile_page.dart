@@ -12,6 +12,7 @@ import '../../utils/user_prefs.dart';
 import '../../utils/responsive.dart';
 import '../../utils/toast_util.dart';
 import '../../utils/image_path_helper.dart';
+import '../../utils/image_normalizer.dart';
 import '../../utils/excel_exporter.dart';
 import '../../services/server_export_service.dart';
 import '../../widgets/float_badge_overlay.dart';
@@ -1191,8 +1192,13 @@ class _ProfilePageState extends State<ProfilePage> with RouteAware {
       final pickedFile =
           await _picker.pickImage(source: ImageSource.gallery);
       if (pickedFile == null) return;
-      // 先读取原图字节，进入裁剪页调整圆形区域
-      final bytes = await File(pickedFile.path).readAsBytes();
+      // 先读取原图字节，归一化为 PNG（兼容 HEIC 等格式）后进入裁剪页
+      final raw = await File(pickedFile.path).readAsBytes();
+      final bytes = await normalizeToPng(raw);
+      if (bytes == null) {
+        if (mounted) ToastUtil.show(context, '无法识别该图片，请换一张 JPG/PNG 图片'.tr);
+        return;
+      }
       if (!mounted) return;
       final Uint8List? cropped = await Navigator.push<Uint8List>(
         context,
@@ -1450,6 +1456,7 @@ class _ProfilePageState extends State<ProfilePage> with RouteAware {
           file = await ExcelExporter.exportGames(
             provider.games.where((g) => !g.isDeleted).toList(),
             reviews: withReviews ? await provider.getAllGameReviews() : null,
+            completions: await provider.getGameCompletionsMap(),
           );
           break;
         default:

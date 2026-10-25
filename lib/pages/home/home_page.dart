@@ -3997,7 +3997,7 @@ class _DesktopListPanelState extends State<_DesktopListPanel> {
       case 3:
         return (
           UserPrefs().effectiveGameSortMode,
-          [(0, '按更新时间', Icons.update), (1, '按创建时间', Icons.calendar_today_outlined), (2, '按评分', Icons.star_outline), (3, '按发售时间', Icons.event_outlined)],
+          [(0, '按更新时间', Icons.update), (1, '按创建时间', Icons.calendar_today_outlined), (2, '按评分', Icons.star_outline), (3, '按发售时间', Icons.event_outlined), (4, '按通关时间', Icons.emoji_events_outlined)],
           '游戏排序',
           (v) { UserPrefs().setGameSortMode(v); provider.loadGames(); },
         );

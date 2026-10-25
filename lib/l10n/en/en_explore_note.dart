@@ -120,6 +120,8 @@ const Map<String, String> enExploreNote = {
   '记录一部影视作品': 'Track a movie',
   '添加书籍': 'Add Book',
   '记录一本书籍': 'Track a book',
+  '添加游戏': 'Add Game',
+  '记录一款游戏': 'Track a game',
 
   // ── 相遇页 ──
   '与你': 'With You',

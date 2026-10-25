@@ -52,6 +52,9 @@ class _GameDetailPageState extends State<GameDetailPage> {
   // ─── 角色预览 ───
   List<dynamic> _characters = [];
 
+  // ─── 通关记录 ───
+  List<GameCompletion> _completions = [];
+
   // ─── 编辑模式 ───
   bool _isEditing = false;
   final _editFormKey = GlobalKey<FormState>();
@@ -82,12 +85,19 @@ class _GameDetailPageState extends State<GameDetailPage> {
     _initEditControllers();
     _detectCoverAspect();
     _loadCharacters();
+    _loadCompletions();
   }
 
   Future<void> _loadCharacters() async {
     final list = await context.read<AppProvider>().getGameCharacters(widget.game.id);
     if (!mounted) return;
     setState(() => _characters = list);
+  }
+
+  Future<void> _loadCompletions() async {
+    final list = await context.read<AppProvider>().getGameCompletions(widget.game.id);
+    if (!mounted) return;
+    setState(() => _completions = list);
   }
 
   void _initEditControllers() {
@@ -1008,8 +1018,108 @@ class _GameDetailPageState extends State<GameDetailPage> {
       if (game.purchasePlatforms.isNotEmpty) row('购买平台', game.purchasePlatforms.join('、')),
       if (game.purchaseDate != null) row('购买时间', _formatDate(game.purchaseDate!)),
       if (game.purchasePrice != null && game.purchasePrice!.isNotEmpty) row('购买价格', game.purchasePrice!),
+      if (_completions.isNotEmpty) _buildCompletionRow(colors, layout),
     ];
   }
+
+  /// 通关时间：多条横向排列、左右滑动
+  Widget _buildCompletionRow(ColorScheme colors, int layout) {
+    final cards = _completions.map((c) {
+      return switch (layout) {
+        1 => _overlayCompletionChip(c),
+        2 => _layeredCompletionChip(c, colors),
+        3 => _desktopCompletionChip(c, colors),
+        _ => _standardCompletionChip(c, colors),
+      };
+    }).toList();
+
+    final list = SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(children: [
+        for (var i = 0; i < cards.length; i++) ...[
+          if (i > 0) const SizedBox(width: 8),
+          cards[i],
+        ],
+      ]),
+    );
+
+    final labelColor = layout == 1
+        ? Colors.white.withValues(alpha: 0.5)
+        : colors.onSurface.withValues(alpha: 0.4);
+    final pad = switch (layout) {
+      1 => const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      3 => const EdgeInsets.symmetric(vertical: 6),
+      _ => const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+    };
+
+    return Padding(
+      padding: pad,
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(width: 72, child: Text('通关时间'.tr, style: TextStyle(fontSize: 13, color: labelColor))),
+        Expanded(child: list),
+      ]),
+    );
+  }
+
+  Widget _completionCardContent(GameCompletion c, Color dateColor, Color noteColor) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(_formatDate(c.completionDate),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: dateColor, height: 1.3)),
+        if (c.note.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 150),
+            child: Text(c.note,
+                maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: noteColor, height: 1.3)),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _standardCompletionChip(GameCompletion c, ColorScheme colors) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: colors.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: _completionCardContent(
+          c, colors.onSurface, colors.onSurface.withValues(alpha: 0.55)),
+      );
+
+  Widget _overlayCompletionChip(GameCompletion c) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: _completionCardContent(
+          c, Colors.white.withValues(alpha: 0.95), Colors.white.withValues(alpha: 0.6)),
+      );
+
+  Widget _layeredCompletionChip(GameCompletion c, ColorScheme colors) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: _completionCardContent(
+          c, colors.onSurface, colors.onSurface.withValues(alpha: 0.55)),
+      );
+
+  Widget _desktopCompletionChip(GameCompletion c, ColorScheme colors) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: colors.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: _completionCardContent(
+          c, colors.onSurface, colors.onSurface.withValues(alpha: 0.55)),
+      );
 
   /// 桌面端：类型标签块
   Widget _buildDesktopGenres(Game game, ColorScheme colors) {
@@ -2365,6 +2475,7 @@ class _GameDetailPageState extends State<GameDetailPage> {
     Navigator.pushNamed(context, '/game-form', arguments: widget.game).then((_) {
       provider.setEditRefresh(widget.game.id);
       provider.loadGames();
+      _loadCompletions();
     });
   }
 

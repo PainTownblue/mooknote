@@ -8,6 +8,8 @@ import '../movies/movie_detail_page.dart';
 import '../movies/movie_form_page.dart';
 import '../book/book_detail_page.dart';
 import '../book/book_form_page.dart';
+import '../game/game_detail_page.dart';
+import '../game/game_form_page.dart';
 import '../../widgets/app_overlay.dart';
 import '../../l10n/app_strings.dart';
 
@@ -27,6 +29,9 @@ class _MediaCalendarPageState extends State<MediaCalendarPage> {
   // {DateTime(dayOnly): [{path, title, type, data}]}
   late Map<DateTime, List<_CalendarItem>> _dayItems;
 
+  // 游戏通关记录（按游戏 id 分组），供“观看/阅读”模式使用
+  Map<String, List<GameCompletion>> _completionMap = {};
+
   @override
   void initState() {
     super.initState();
@@ -34,6 +39,14 @@ class _MediaCalendarPageState extends State<MediaCalendarPage> {
     final now = DateTime.now();
     _currentMonth = DateTime(now.year, now.month);
     _selectedDay = DateTime(now.year, now.month, now.day);
+    _initData();
+  }
+
+  Future<void> _initData() async {
+    if (_dateMode == 1) {
+      _completionMap = await context.read<AppProvider>().getGameCompletionsMap();
+      if (!mounted) return;
+    }
     _buildDayMap();
   }
 
@@ -69,6 +82,24 @@ class _MediaCalendarPageState extends State<MediaCalendarPage> {
       ));
     }
 
+    for (final g in provider.games.where((g) => !g.isDeleted)) {
+      if (g.coverPath == null || g.coverPath!.isEmpty) continue;
+      if (_dateMode == 1) {
+        // 观看/阅读模式：按每条通关记录的日期各占一格
+        for (final c in _completionMap[g.id] ?? const <GameCompletion>[]) {
+          final date = c.completionDate;
+          final day = DateTime(date.year, date.month, date.day);
+          map.putIfAbsent(day, () => []);
+          map[day]!.add(_CalendarItem(path: g.coverPath!, title: g.title, type: 'game', data: g));
+        }
+      } else {
+        final date = g.createdAt;
+        final day = DateTime(date.year, date.month, date.day);
+        map.putIfAbsent(day, () => []);
+        map[day]!.add(_CalendarItem(path: g.coverPath!, title: g.title, type: 'game', data: g));
+      }
+    }
+
     _dayItems = map;
   }
 
@@ -76,12 +107,14 @@ class _MediaCalendarPageState extends State<MediaCalendarPage> {
     return Padding(
       padding: const EdgeInsets.only(right: 4),
       child: TextButton.icon(
-        onPressed: () {
-          setState(() {
-            _dateMode = _dateMode == 0 ? 1 : 0;
-            UserPrefs().setCalendarDateMode(_dateMode);
-            _buildDayMap();
-          });
+        onPressed: () async {
+          _dateMode = _dateMode == 0 ? 1 : 0;
+          UserPrefs().setCalendarDateMode(_dateMode);
+          if (_dateMode == 1 && _completionMap.isEmpty) {
+            _completionMap = await context.read<AppProvider>().getGameCompletionsMap();
+            if (!mounted) return;
+          }
+          setState(() => _buildDayMap());
         },
         icon: Icon(_dateMode == 0 ? Icons.calendar_today_outlined : Icons.visibility_outlined, size: 16, color: colors.primary),
         label: Text(_dateMode == 0 ? '创建日期'.tr : '观看/阅读'.tr, style: TextStyle(fontSize: 12, color: colors.primary)),
@@ -432,19 +465,21 @@ class _MediaCalendarPageState extends State<MediaCalendarPage> {
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: item.type == 'movie' ? const Color(0xFF4A90D9).withValues(alpha: 0.1) : const Color(0xFF7E57C2).withValues(alpha: 0.1),
+                      color: _typeColor(item.type).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      item.type == 'movie' ? '影视'.tr : '书籍'.tr,
-                      style: TextStyle(fontSize: 11, color: item.type == 'movie' ? const Color(0xFF4A90D9) : const Color(0xFF7E57C2)),
+                      _typeLabel(item.type),
+                      style: TextStyle(fontSize: 11, color: _typeColor(item.type)),
                     ),
                   ),
                   onTap: () {
                     if (item.type == 'movie') {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => MovieDetailPage(movie: item.data as Movie)));
-                    } else {
+                    } else if (item.type == 'book') {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => BookDetailPage(book: item.data as Book)));
+                    } else {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => GameDetailPage(game: item.data as Game)));
                     }
                   },
                 );
@@ -456,6 +491,18 @@ class _MediaCalendarPageState extends State<MediaCalendarPage> {
       ),
     );
   }
+
+  Color _typeColor(String type) => switch (type) {
+        'movie' => const Color(0xFF4A90D9),
+        'game' => const Color(0xFF66BB6A),
+        _ => const Color(0xFF7E57C2),
+      };
+
+  String _typeLabel(String type) => switch (type) {
+        'movie' => '影视'.tr,
+        'game' => '游戏'.tr,
+        _ => '书籍'.tr,
+      };
 
   void _showAddMenu(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -493,6 +540,19 @@ class _MediaCalendarPageState extends State<MediaCalendarPage> {
             onTap: () {
               Navigator.pop(ctx);
               Navigator.push(context, MaterialPageRoute(builder: (_) => const BookFormPage()));
+            },
+          ),
+          Divider(height: 0.5, indent: 20, endIndent: 20, color: colors.outlineVariant),
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+            leading: Container(width: 36, height: 36, decoration: BoxDecoration(color: colors.surfaceContainerHighest, borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.sports_esports_outlined, size: 20, color: Color(0xFF66BB6A))),
+            title: Text('添加游戏'.tr, style: TextStyle(fontSize: 14, color: colors.onSurface)),
+            subtitle: Text('记录一款游戏'.tr, style: TextStyle(fontSize: 11, color: colors.onSurface.withValues(alpha: 0.4))),
+            trailing: Icon(Icons.chevron_right, color: colors.onSurface.withValues(alpha: 0.25)),
+            onTap: () {
+              Navigator.pop(ctx);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const GameFormPage()));
             },
           ),
           const SizedBox(height: 12),

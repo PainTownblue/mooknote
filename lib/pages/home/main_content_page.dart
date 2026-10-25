@@ -312,6 +312,7 @@ class _MainContentPageState extends State<MainContentPage> {
                                                     (1, '按创建时间排序', Icons.calendar_today_outlined),
                                                     (2, '按游戏评分排序', Icons.star_outline),
                                                     (3, '按发售时间排序', Icons.event_outlined),
+                                                    (4, '按通关时间排序', Icons.emoji_events_outlined),
                                                   ], (v) { UserPrefs().setGameSortMode(v); context.read<AppProvider>().loadGames(); });
                                                 }
                                               : null,

@@ -450,7 +450,7 @@ class _SearchPageBodyState extends State<SearchPageBody> {
               Row(children: [
                 _typeBadge('书籍'.tr),
                 const Spacer(),
-                _statusBadge(book.status, colors),
+                _statusBadge(book.status, colors, mediaType: 'book'),
               ]),
               const SizedBox(height: 6),
               Text(book.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: colors.onSurface)),
@@ -528,7 +528,7 @@ class _SearchPageBodyState extends State<SearchPageBody> {
               Row(children: [
                 _typeBadge('游戏'.tr),
                 const Spacer(),
-                _statusBadge(game.status, colors),
+                _statusBadge(game.status, colors, mediaType: 'game'),
               ]),
               const SizedBox(height: 6),
               Text(game.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: colors.onSurface)),
@@ -574,14 +574,42 @@ class _SearchPageBodyState extends State<SearchPageBody> {
     );
   }
 
-  Widget _statusBadge(String status, ColorScheme colors) {
-    final (label, bg, fg) = switch (status) {
-      'watched' || 'read' || 'completed' => ('已看'.tr, colors.primary, colors.onPrimary),
-      'watching' || 'reading' || 'playing' => ('在看'.tr, colors.outlineVariant, colors.onSurface.withValues(alpha: 0.6)),
-      'want_to_watch' || 'want_to_read' || 'want_to_play' => ('想看'.tr, colors.surfaceContainerHighest, colors.onSurface.withValues(alpha: 0.4)),
-      'abandoned' => ('弃游'.tr, colors.errorContainer, colors.onError),
-      _ => ('', colors.surfaceContainerHighest, colors.onSurface.withValues(alpha: 0.3)),
+  Widget _statusBadge(String status, ColorScheme colors, {String mediaType = 'movie'}) {
+    final Map<String, String> labels = switch (mediaType) {
+      'book' => const {
+          'done': '已读',
+          'ing': '在读',
+          'want': '想读',
+          'abandoned': '弃读',
+        },
+      'game' => const {
+          'done': '已通关',
+          'ing': '在玩',
+          'want': '想玩',
+          'abandoned': '弃游',
+        },
+      _ => const {
+          'done': '已看',
+          'ing': '在看',
+          'want': '想看',
+          'abandoned': '弃看',
+        },
     };
+    final key = switch (status) {
+      'watched' || 'read' || 'completed' => 'done',
+      'watching' || 'reading' || 'playing' => 'ing',
+      'want_to_watch' || 'want_to_read' || 'want_to_play' => 'want',
+      'abandoned' => 'abandoned',
+      _ => '',
+    };
+    final (bg, fg) = switch (key) {
+      'done' => (colors.primary, colors.onPrimary),
+      'ing' => (colors.outlineVariant, colors.onSurface.withValues(alpha: 0.6)),
+      'want' => (colors.surfaceContainerHighest, colors.onSurface.withValues(alpha: 0.4)),
+      'abandoned' => (colors.errorContainer, colors.onError),
+      _ => (colors.surfaceContainerHighest, colors.onSurface.withValues(alpha: 0.3)),
+    };
+    final label = labels[key] ?? '';
     if (label.isEmpty) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),

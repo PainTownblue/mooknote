@@ -81,7 +81,6 @@ const Map<String, String> enProfile = {
   '功能设置': 'Feature Settings',
   '布局设置': 'Layout Settings',
   '更新日志': 'Changelog',
-  '开发日志': 'Dev Log',
 
   // ─── 状态标签 ─────────────────────────────────────────
   '已通关': 'Completed',
@@ -157,8 +156,6 @@ const Map<String, String> enProfile = {
       'Open the official website in the browser',
   '项目源码': 'Source Code',
   '查看 GitHub 项目仓库': 'View the GitHub repository',
-  '在浏览器中查看项目开发记录':
-      'View the project development log in the browser',
   '查看版本更新内容': 'View version update details',
   '用户服务协议': 'Terms of Service',
   '查看用户服务协议': 'View terms of service',
@@ -323,12 +320,20 @@ const Map<String, String> enProfile = {
       'Show launch date at the bottom-right of covers',
   '按游戏评分排序': 'Sort by game rating',
   '按发售时间排序': 'Sort by launch date',
+  '按通关时间排序': 'Sort by completion date',
+  '按通关时间': 'By completion date',
   '年份网格布局固定按上映时间排序':
       'Year grid layout is locked to release-date sort',
   '年份网格布局固定按出版时间排序':
       'Year grid layout is locked to publication-date sort',
   '年份网格布局固定按发售时间排序':
       'Year grid layout is locked to launch-date sort',
+  '显示标题': 'Show title',
+  '显示评分': 'Show rating',
+  '卡片上显示影视名称': 'Show movie titles on cards',
+  '卡片上显示书籍名称': 'Show book titles on cards',
+  '卡片上显示游戏名称': 'Show game titles on cards',
+  '卡片上显示评分': 'Show ratings on cards',
 
   // ─── 回收站 ───────────────────────────────────────────
   '删除于 {date}': 'Deleted on {date}',

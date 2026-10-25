@@ -127,15 +127,15 @@ class ExcelExporter {
     return _save(excel, '阅读'.tr);
   }
 
-  /// 导出游戏数据；传入 reviews 时附带游戏评价 sheet
-  static Future<File> exportGames(List<Game> games, {List<GameReview>? reviews}) async {
+  /// 导出游戏数据；传入 reviews 时附带游戏评价 sheet，传入 completions 时附带通关时间
+  static Future<File> exportGames(List<Game> games, {List<GameReview>? reviews, Map<String, List<GameCompletion>>? completions}) async {
     final excel = Excel.createExcel();
     final sheet = excel['游戏'.tr];
 
     sheet.appendRow(_row([
       '名称'.tr, '状态'.tr, '评分'.tr, '分类'.tr, '平台'.tr, '版本'.tr, '类型'.tr,
       '游玩时长(小时)'.tr, '游玩时长(分钟)'.tr, '游玩次数'.tr, '开发者'.tr,
-      '发售时间'.tr, '购买平台'.tr, '购买日期'.tr, '购买价格'.tr, '简介'.tr,
+      '发售时间'.tr, '购买平台'.tr, '购买日期'.tr, '购买价格'.tr, '通关时间'.tr, '简介'.tr,
       '创建时间'.tr, '更新时间'.tr,
     ]));
 
@@ -162,6 +162,9 @@ class ExcelExporter {
         g.purchasePlatforms.join('、'),
         _fmtDate(g.purchaseDate),
         g.purchasePrice ?? '',
+        (completions?[g.id] ?? const [])
+            .map((c) => c.note.isEmpty ? _fmtDate(c.completionDate) : '${_fmtDate(c.completionDate)} ${c.note}')
+            .join('；'),
         g.summary ?? '',
         _fmtDateTime(g.createdAt),
         _fmtDateTime(g.updatedAt),

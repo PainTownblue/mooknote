@@ -36,6 +36,12 @@ class _LayoutSettingsPageState extends State<LayoutSettingsPage> {
   bool _showMovieCardDate = false;
   bool _showBookCardDate = false;
   bool _showGameCardDate = false;
+  bool _showMovieTitle = true;
+  bool _showMovieRating = true;
+  bool _showBookTitle = true;
+  bool _showBookRating = true;
+  bool _showGameTitle = true;
+  bool _showGameRating = true;
 
   @override
   void initState() {
@@ -62,6 +68,12 @@ class _LayoutSettingsPageState extends State<LayoutSettingsPage> {
     _showMovieCardDate = _userPrefs.showMovieCardDate;
     _showBookCardDate = _userPrefs.showBookCardDate;
     _showGameCardDate = _userPrefs.showGameCardDate;
+    _showMovieTitle = _userPrefs.showMovieTitle;
+    _showMovieRating = _userPrefs.showMovieRating;
+    _showBookTitle = _userPrefs.showBookTitle;
+    _showBookRating = _userPrefs.showBookRating;
+    _showGameTitle = _userPrefs.showGameTitle;
+    _showGameRating = _userPrefs.showGameRating;
   }
 
   @override
@@ -430,6 +442,14 @@ class _LayoutSettingsPageState extends State<LayoutSettingsPage> {
               title: '海报显示日期'.tr, subtitle: '海报右下角显示上映日期'.tr,
               value: _showMovieCardDate, onChanged: (v) { _setShowMovieCardDate(v); setSheetState(() {}); }, colors: colors,
             ),
+            _sheetSwitchRow(
+              title: '显示标题'.tr, subtitle: '卡片上显示影视名称'.tr,
+              value: _showMovieTitle, onChanged: (v) { _setShowMovieTitle(v); setSheetState(() {}); }, colors: colors,
+            ),
+            _sheetSwitchRow(
+              title: '显示评分'.tr, subtitle: '卡片上显示评分'.tr,
+              value: _showMovieRating, onChanged: (v) { _setShowMovieRating(v); setSheetState(() {}); }, colors: colors,
+            ),
             _sheetDivider(colors),
             _sheetOptionRow(
               label: '显示模式'.tr, selected: _movieWallMode ? 2 : _movieDisplayMode,
@@ -521,6 +541,14 @@ class _LayoutSettingsPageState extends State<LayoutSettingsPage> {
             _sheetSwitchRow(
               title: '封面显示日期'.tr, subtitle: '封面右下角显示出版日期'.tr,
               value: _showBookCardDate, onChanged: (v) { _setShowBookCardDate(v); setSheetState(() {}); }, colors: colors,
+            ),
+            _sheetSwitchRow(
+              title: '显示标题'.tr, subtitle: '卡片上显示书籍名称'.tr,
+              value: _showBookTitle, onChanged: (v) { _setShowBookTitle(v); setSheetState(() {}); }, colors: colors,
+            ),
+            _sheetSwitchRow(
+              title: '显示评分'.tr, subtitle: '卡片上显示评分'.tr,
+              value: _showBookRating, onChanged: (v) { _setShowBookRating(v); setSheetState(() {}); }, colors: colors,
             ),
             _sheetDivider(colors),
             _sheetOptionRow(
@@ -641,6 +669,14 @@ class _LayoutSettingsPageState extends State<LayoutSettingsPage> {
               title: '封面显示日期'.tr, subtitle: '封面右下角显示发售日期'.tr,
               value: _showGameCardDate, onChanged: (v) { _setShowGameCardDate(v); setSheetState(() {}); }, colors: colors,
             ),
+            _sheetSwitchRow(
+              title: '显示标题'.tr, subtitle: '卡片上显示游戏名称'.tr,
+              value: _showGameTitle, onChanged: (v) { _setShowGameTitle(v); setSheetState(() {}); }, colors: colors,
+            ),
+            _sheetSwitchRow(
+              title: '显示评分'.tr, subtitle: '卡片上显示评分'.tr,
+              value: _showGameRating, onChanged: (v) { _setShowGameRating(v); setSheetState(() {}); }, colors: colors,
+            ),
             _sheetDivider(colors),
             _sheetOptionRow(
               label: '显示模式'.tr, selected: _gameWallMode ? 1 : 0,
@@ -695,6 +731,7 @@ class _LayoutSettingsPageState extends State<LayoutSettingsPage> {
                   (1, '按创建时间排序'.tr, Icons.calendar_today_outlined),
                   (2, '按游戏评分排序'.tr, Icons.star_outline),
                   (3, '按发售时间排序'.tr, Icons.event_outlined),
+                  (4, '按通关时间排序'.tr, Icons.emoji_events_outlined),
                 ],
                 colors: colors,
                 onChanged: (v) { _setSortMode('game', v); setSheetState(() {}); },
@@ -738,6 +775,42 @@ class _LayoutSettingsPageState extends State<LayoutSettingsPage> {
     await _userPrefs.setShowGameCardDate(value);
     setState(() => _showGameCardDate = value);
     if (mounted) context.read<AppProvider>().setShowGameCardDate(value);
+  }
+
+  void _setShowMovieTitle(bool value) async {
+    await _userPrefs.setShowMovieTitle(value);
+    setState(() => _showMovieTitle = value);
+    if (mounted) context.read<AppProvider>().setShowMovieTitle(value);
+  }
+
+  void _setShowMovieRating(bool value) async {
+    await _userPrefs.setShowMovieRating(value);
+    setState(() => _showMovieRating = value);
+    if (mounted) context.read<AppProvider>().setShowMovieRating(value);
+  }
+
+  void _setShowBookTitle(bool value) async {
+    await _userPrefs.setShowBookTitle(value);
+    setState(() => _showBookTitle = value);
+    if (mounted) context.read<AppProvider>().setShowBookTitle(value);
+  }
+
+  void _setShowBookRating(bool value) async {
+    await _userPrefs.setShowBookRating(value);
+    setState(() => _showBookRating = value);
+    if (mounted) context.read<AppProvider>().setShowBookRating(value);
+  }
+
+  void _setShowGameTitle(bool value) async {
+    await _userPrefs.setShowGameTitle(value);
+    setState(() => _showGameTitle = value);
+    if (mounted) context.read<AppProvider>().setShowGameTitle(value);
+  }
+
+  void _setShowGameRating(bool value) async {
+    await _userPrefs.setShowGameRating(value);
+    setState(() => _showGameRating = value);
+    if (mounted) context.read<AppProvider>().setShowGameRating(value);
   }
 
   void _setWallMode(String type, bool value) async {

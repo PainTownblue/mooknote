@@ -70,7 +70,7 @@ class IncEntities {
       table: 'games',
       tsColumn: 'updated_at',
       imageColumns: ['cover_path'],
-      groups: {'game_people': 'game_people', 'game_screenshots': 'game_screenshots'},
+      groups: {'game_people': 'game_people', 'game_screenshots': 'game_screenshots', 'game_completions': 'game_completions'},
     ),
     IncEntitySpec(table: 'movie_reviews', tsColumn: 'updated_at', imageJsonColumn: 'images'),
     IncEntitySpec(table: 'book_reviews', tsColumn: 'updated_at', imageJsonColumn: 'images'),
@@ -108,6 +108,7 @@ class IncEntities {
     IncGroupSpec(table: 'book_people', parentTable: 'books', parentColumn: 'book_id'),
     IncGroupSpec(table: 'game_people', parentTable: 'games', parentColumn: 'game_id'),
     IncGroupSpec(table: 'game_screenshots', parentTable: 'games', parentColumn: 'game_id', tsColumn: 'created_at'),
+    IncGroupSpec(table: 'game_completions', parentTable: 'games', parentColumn: 'game_id', tsColumn: 'updated_at'),
     IncGroupSpec(table: 'playlist_items', parentTable: 'playlists', parentColumn: 'playlist_id', tsColumn: 'added_at'),
   ];
 

@@ -356,7 +356,7 @@ class UserPrefs {
   bool get bookshelfMode => prefs.getBool('bookshelfMode') ?? false;
   Future<bool> setBookshelfMode(bool value) => prefs.setBool('bookshelfMode', value);
 
-  /// 游戏排序方式 (0: 更新时间, 1: 创建时间, 2: 评分)
+  /// 游戏排序方式 (0: 更新时间, 1: 创建时间, 2: 评分, 3: 发售时间, 4: 通关时间)
   int get gameSortMode => prefs.getInt('gameSortMode') ?? 0;
   Future<bool> setGameSortMode(int value) => prefs.setInt('gameSortMode', value);
 
@@ -383,6 +383,22 @@ class UserPrefs {
   /// 游戏封面右下角显示发售日期
   bool get showGameCardDate => prefs.getBool('showGameCardDate') ?? false;
   Future<bool> setShowGameCardDate(bool value) => prefs.setBool('showGameCardDate', value);
+
+  /// 列表是否显示标题（默认显示）
+  bool get showMovieTitle => prefs.getBool('showMovieTitle') ?? true;
+  Future<bool> setShowMovieTitle(bool value) => prefs.setBool('showMovieTitle', value);
+  bool get showBookTitle => prefs.getBool('showBookTitle') ?? true;
+  Future<bool> setShowBookTitle(bool value) => prefs.setBool('showBookTitle', value);
+  bool get showGameTitle => prefs.getBool('showGameTitle') ?? true;
+  Future<bool> setShowGameTitle(bool value) => prefs.setBool('showGameTitle', value);
+
+  /// 列表是否显示评分（默认显示）
+  bool get showMovieRating => prefs.getBool('showMovieRating') ?? true;
+  Future<bool> setShowMovieRating(bool value) => prefs.setBool('showMovieRating', value);
+  bool get showBookRating => prefs.getBool('showBookRating') ?? true;
+  Future<bool> setShowBookRating(bool value) => prefs.setBool('showBookRating', value);
+  bool get showGameRating => prefs.getBool('showGameRating') ?? true;
+  Future<bool> setShowGameRating(bool value) => prefs.setBool('showGameRating', value);
 
   /// 已阅页布局样式 (0: 列表, 1: 网格)
   int get reviewedLayoutStyle => prefs.getInt('reviewedLayoutStyle') ?? 0;

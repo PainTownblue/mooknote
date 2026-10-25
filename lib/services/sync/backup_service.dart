@@ -105,6 +105,7 @@ class BackupService {
     final games = await db.query('games');
     final gameReviews = await db.query('game_reviews');
     final gameScreenshots = await db.query('game_screenshots');
+    final gameCompletions = await db.query('game_completions');
     final people = await db.query('people');
     final moviePeople = await db.query('movie_people');
     final bookPeople = await db.query('book_people');
@@ -209,6 +210,7 @@ class BackupService {
         'games': games,
         'game_reviews': gameReviews,
         'game_screenshots': gameScreenshots,
+        'game_completions': gameCompletions,
         'people': people,
         'movie_people': moviePeople,
         'book_people': bookPeople,
@@ -667,6 +669,7 @@ class BackupService {
     final gamesCols = await _getTableColumns(db, 'games');
     final gameReviewsCols = await _getTableColumns(db, 'game_reviews');
     final gameScreenshotsCols = await _getTableColumns(db, 'game_screenshots');
+    final gameCompletionsCols = await _getTableColumns(db, 'game_completions');
     final peopleCols = await _getTableColumns(db, 'people');
     final moviePeopleCols = await _getTableColumns(db, 'movie_people');
     final bookPeopleCols = await _getTableColumns(db, 'book_people');
@@ -688,6 +691,7 @@ class BackupService {
       await txn.delete('book_excerpts');
       await txn.delete('game_reviews');
       await txn.delete('game_screenshots');
+      await txn.delete('game_completions');
       await txn.delete('movie_people');
       await txn.delete('book_people');
       await txn.delete('game_people');
@@ -755,6 +759,11 @@ class BackupService {
       if (data.containsKey('game_screenshots')) {
         for (final s in data['game_screenshots'] as List) {
           await txn.insert('game_screenshots', _updateImagePath(_convertToDbMapSafe(s, gameScreenshotsCols), 'screenshot_path', imagePathMap));
+        }
+      }
+      if (data.containsKey('game_completions')) {
+        for (final c in data['game_completions'] as List) {
+          await txn.insert('game_completions', _convertToDbMapSafe(c, gameCompletionsCols));
         }
       }
       if (data.containsKey('tags')) {
@@ -936,6 +945,7 @@ class BackupService {
     if (data.containsKey('games')) stats['游戏'] = (data['games'] as List).length;
     if (data.containsKey('game_reviews')) stats['游戏评价'] = (data['game_reviews'] as List).length;
     if (data.containsKey('game_screenshots')) stats['游戏截图'] = (data['game_screenshots'] as List).length;
+    if (data.containsKey('game_completions')) stats['通关记录'] = (data['game_completions'] as List).length;
     if (data.containsKey('people')) stats['人物'] = (data['people'] as List).length;
     if (data.containsKey('playlists')) stats['片单'] = (data['playlists'] as List).length;
     int charCount = 0;

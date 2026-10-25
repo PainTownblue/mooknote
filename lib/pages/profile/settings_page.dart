@@ -314,18 +314,6 @@ class _SettingsPageState extends State<SettingsPage> {
               endIndent: 24,
               color: colors.outlineVariant),
           _buildActionItem(
-            icon: Icons.code_outlined,
-            title: '开发日志'.tr,
-            subtitle: '在浏览器中查看项目开发记录'.tr,
-            onTap: () => launchUrl(Uri.parse(
-                'http://docmost.iletter.top/share/ropwljpyvn/p/mook-note-lHmPTswdDC')),
-          ),
-          Divider(
-              height: 0.5,
-              indent: 24,
-              endIndent: 24,
-              color: colors.outlineVariant),
-          _buildActionItem(
             icon: Icons.update_outlined,
             title: '更新日志'.tr,
             subtitle: '查看版本更新内容'.tr,

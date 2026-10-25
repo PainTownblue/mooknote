@@ -81,7 +81,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 50,
+      version: 51,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -509,6 +509,26 @@ class DatabaseHelper {
         await db.execute('ALTER TABLE tags ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0');
       }
     }
+    if (oldVersion < 51) {
+      // 游戏通关记录表（一个游戏可有多条通关记录）
+      await _createGameCompletionsTable(db);
+    }
+  }
+
+  /// 游戏通关记录表（v51，onCreate 与迁移共用）
+  Future<void> _createGameCompletionsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS game_completions (
+        id TEXT PRIMARY KEY,
+        game_id TEXT NOT NULL,
+        completion_date TEXT NOT NULL,
+        note TEXT DEFAULT '',
+        is_deleted INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (game_id) REFERENCES games (id)
+      )
+    ''');
   }
 
   /// 图片元数据表（v49，onCreate 与迁移共用）
@@ -1142,6 +1162,9 @@ class DatabaseHelper {
         FOREIGN KEY (game_id) REFERENCES games (id)
       )
     ''');
+
+    // 游戏通关记录表
+    await _createGameCompletionsTable(db);
 
     // 片单表
     await db.execute('''

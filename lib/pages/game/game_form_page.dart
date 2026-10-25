@@ -62,10 +62,22 @@ class _GameFormPageState extends State<GameFormPage> {
   DateTime? _releaseDate;
   bool _isDownloading = false;
 
+  // 通关记录（草稿，保存游戏时一并写库）
+  List<GameCompletion> _completions = [];
+  final Set<String> _removedCompletionIds = {};
+
   @override
   void initState() {
     super.initState();
     _initializeData();
+    _loadCompletions();
+  }
+
+  Future<void> _loadCompletions() async {
+    if (widget.game == null) return;
+    final list = await context.read<AppProvider>().getGameCompletions(widget.game!.id);
+    if (!mounted) return;
+    setState(() => _completions = list);
   }
 
   void _initializeData() {
@@ -444,6 +456,19 @@ class _GameFormPageState extends State<GameFormPage> {
                   height: 160,
                   scrollable: true,
                   onTap: () => _editSummary(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // 通关记录（独占一行）
+              SizedBox(
+                width: double.infinity,
+                child: _buildInfoCard(
+                  label: '通关记录',
+                  value: _completions.isEmpty
+                      ? ''
+                      : '{n}次通关'.trf({'n': _completions.length}),
+                  icon: Icons.emoji_events_outlined,
+                  onTap: _openCompletionsEditor,
                 ),
               ),
               const SizedBox(height: 48),
@@ -1103,6 +1128,45 @@ class _GameFormPageState extends State<GameFormPage> {
     }
   }
 
+  Future<void> _openCompletionsEditor() async {
+    final result = await showModalBottomSheet<List<GameCompletion>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _GameCompletionsSheet(initial: List.of(_completions)),
+    );
+    if (!mounted || result == null) return;
+    // 原有记录中未出现在结果里的，记为待删除
+    for (final old in _completions) {
+      if (old.id.isNotEmpty && !result.any((c) => c.id == old.id)) {
+        _removedCompletionIds.add(old.id);
+      }
+    }
+    setState(() => _completions = result..sort((a, b) => b.completionDate.compareTo(a.completionDate)));
+  }
+
+  /// 将草稿中的通关记录写库（新游戏插入后用其 id，已有游戏用原 id）
+  Future<void> _syncCompletions(String gameId, DateTime now) async {
+    final provider = context.read<AppProvider>();
+    for (final c in _completions) {
+      if (c.id.isEmpty) {
+        await provider.addGameCompletion(GameCompletion(
+          id: const Uuid().v4(),
+          gameId: gameId,
+          completionDate: c.completionDate,
+          note: c.note,
+          createdAt: now,
+          updatedAt: now,
+        ));
+      } else {
+        await provider.updateGameCompletion(c.copyWith(gameId: gameId, updatedAt: now));
+      }
+    }
+    for (final id in _removedCompletionIds) {
+      await provider.removeGameCompletion(id);
+    }
+  }
+
   bool _hasContent() {
     if (widget.game != null) return true;
     if (_titleController.text.trim().isNotEmpty) return true;
@@ -1199,6 +1263,8 @@ class _GameFormPageState extends State<GameFormPage> {
         await context.read<AppProvider>().addGame(newGame);
         if (!mounted) return;
         await context.read<AppProvider>().loadGames();
+        if (!mounted) return;
+        await _syncCompletions(newGameId, now);
       } else {
         final updatedGame = widget.game!.copyWith(
           title: _titleController.text.trim(),
@@ -1226,6 +1292,8 @@ class _GameFormPageState extends State<GameFormPage> {
         );
 
         await context.read<AppProvider>().updateGame(updatedGame);
+        if (!mounted) return;
+        await _syncCompletions(widget.game!.id, now);
       }
 
       if (!mounted) return;
@@ -1356,6 +1424,167 @@ class _PlayTimeFieldsState extends State<_PlayTimeFields> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 通关记录编辑底部弹层：维护工作副本，点击「完成」回传整份列表
+class _GameCompletionsSheet extends StatefulWidget {
+  final List<GameCompletion> initial;
+  const _GameCompletionsSheet({required this.initial});
+
+  @override
+  State<_GameCompletionsSheet> createState() => _GameCompletionsSheetState();
+}
+
+class _GameCompletionsSheetState extends State<_GameCompletionsSheet> {
+  late List<GameCompletion> _items;
+
+  @override
+  void initState() {
+    super.initState();
+    _items = List.of(widget.initial);
+  }
+
+  String _fmtDate(DateTime d) =>
+      '${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}';
+
+  Future<void> _pickDate(int index) async {
+    final picked = await showDatePickerSheet(
+      context: context,
+      title: '通关时间'.tr,
+      initial: _items[index].completionDate,
+      firstDate: DateTime(1970),
+    );
+    if (picked != null) {
+      setState(() => _items[index] = _items[index].copyWith(completionDate: picked));
+    }
+  }
+
+  Future<void> _editNote(int index) async {
+    final result = await TextEditSheet.show(
+      context: context,
+      title: '备注'.tr,
+      initialText: _items[index].note,
+      hintText: '难度 / 结局 / 心得（可选）'.tr,
+    );
+    if (result != null) {
+      setState(() => _items[index] = _items[index].copyWith(note: result.trim()));
+    }
+  }
+
+  void _add() {
+    setState(() => _items.add(GameCompletion(
+          id: '',
+          gameId: '',
+          completionDate: DateTime.now(),
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        )));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+              child: Row(
+                children: [
+                  Icon(Icons.emoji_events_outlined, size: 20, color: colors.primary),
+                  const SizedBox(width: 8),
+                  Text('通关记录'.tr,
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: colors.onSurface)),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, _items),
+                    child: Text('完成'.tr),
+                  ),
+                ],
+              ),
+            ),
+            Flexible(
+              child: _items.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Text('暂无通关记录，点击下方按钮添加'.tr,
+                          style: TextStyle(fontSize: 14, color: colors.onSurface.withValues(alpha: 0.45))),
+                    )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: _items.length,
+                      separatorBuilder: (_, __) => Divider(height: 1, color: colors.outlineVariant),
+                      itemBuilder: (_, i) {
+                        final c = _items[i];
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  InkWell(
+                                    onTap: () => _pickDate(i),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      child: Text(_fmtDate(c.completionDate),
+                                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: colors.onSurface)),
+                                    ),
+                                  ),
+                                  InkWell(
+                                    onTap: () => _editNote(i),
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(bottom: 10),
+                                      child: Text(
+                                        c.note.isEmpty ? '添加备注'.tr : c.note,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: c.note.isEmpty
+                                              ? colors.onSurface.withValues(alpha: 0.35)
+                                              : colors.onSurface.withValues(alpha: 0.7),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.delete_outline, color: colors.error, size: 22),
+                              onPressed: () => setState(() => _items.removeAt(i)),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _add,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: Text('添加通关记录'.tr),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

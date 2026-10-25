@@ -8,12 +8,9 @@
 
 ## 应用预览
 
-|                  主界面                 |                  我的界面                  |                  侧边栏                  |
-| :-----------------------------------------: | :-----------------------------------------: | :-----------------------------------------: |
+|                主界面                |                我的界面                |                侧边栏                |
+| :----------------------------------: | :------------------------------------: | :----------------------------------: |
 | ![影视列表](image/README/主界面.png) | ![书籍列表](image/README/我的界面.png) | ![笔记界面](image/README/侧边栏.png) |
-
-
-
 
 ## 功能特性
 
@@ -111,20 +108,20 @@
 
 ## 技术栈
 
-| 层级 | 技术 |
-| :--- | :--- |
-| 框架 | Flutter 3.5+ / Dart 3.5+ |
-| 状态管理 | Provider（单一 `AppProvider` ChangeNotifier） |
+| 层级     | 技术                                                                                     |
+| :------- | :--------------------------------------------------------------------------------------- |
+| 框架     | Flutter 3.5+ / Dart 3.5+                                                                 |
+| 状态管理 | Provider（单一`AppProvider` ChangeNotifier）                                           |
 | 本地存储 | sqflite（`mooknote.db`，已迭代至 v49 迁移链；Windows / Linux 端走 sqflite_common_ffi） |
-| 远程同步 | 自建 Flask 服务端 + WebDAV |
-| 图表 | fl_chart |
-| Markdown | flutter_markdown_plus |
-| WebView | flutter_inappwebview（豆瓣网页抓取） |
-| 视频播放 | media_kit（视频播放） |
-| 数据导出 | excel / archive（Excel 与 zip 备份） |
-| 桌面适配 | window_manager |
-| 动态取色 | dynamic_color（Android 12+ Monet） |
-| 国际化 | 轻量自建 i18n（中文为 key，中英双语） |
+| 远程同步 | 自建 Flask 服务端 + WebDAV                                                               |
+| 图表     | fl_chart                                                                                 |
+| Markdown | flutter_markdown_plus                                                                    |
+| WebView  | flutter_inappwebview（豆瓣网页抓取）                                                     |
+| 视频播放 | media_kit（视频播放）                                                                    |
+| 数据导出 | excel / archive（Excel 与 zip 备份）                                                     |
+| 桌面适配 | window_manager                                                                           |
+| 动态取色 | dynamic_color（Android 12+ Monet）                                                       |
+| 国际化   | 轻量自建 i18n（中文为 key，中英双语）                                                    |
 
 ## 项目结构
 
@@ -210,7 +207,6 @@ flutter build apk --release --target-platform android-arm64
 # 构建 App Bundle（Google Play）
 flutter build appbundle --release
 ```
-
 
 ## 影视书籍资源数据对接
 

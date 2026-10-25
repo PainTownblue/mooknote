@@ -98,6 +98,12 @@ String? _describeKey(String key) {
     'showMovieCardDate': '影视卡片是否显示日期',
     'showBookCardDate': '阅读卡片是否显示日期',
     'showGameCardDate': '游戏卡片是否显示日期',
+    'showMovieTitle': '影视列表是否显示标题',
+    'showMovieRating': '影视列表是否显示评分',
+    'showBookTitle': '阅读列表是否显示标题',
+    'showBookRating': '阅读列表是否显示评分',
+    'showGameTitle': '游戏列表是否显示标题',
+    'showGameRating': '游戏列表是否显示评分',
   };
   for (final e in prefixes.entries) {
     if (key.startsWith(e.key)) return e.value;

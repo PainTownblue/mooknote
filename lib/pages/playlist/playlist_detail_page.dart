@@ -19,19 +19,32 @@ class PlaylistDetailPage extends StatefulWidget {
   State<PlaylistDetailPage> createState() => _PlaylistDetailPageState();
 }
 
-class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
+class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SingleTickerProviderStateMixin {
   List<PlaylistItem> _items = [];
   bool _loading = true;
+  String _statusFilter = 'all'; // all / 具体状态 / none
   final Map<String, double> _slideOffsets = {};
   double _dragStartX = 0;
   double _dragStartOffset = 0;
   bool _isHorizontalDrag = false;
   static const _actionWidth = 56.0;
 
+  late final AnimationController _wallCtrl;
+
   @override
   void initState() {
     super.initState();
+    _wallCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 80),
+    );
     _loadItems();
+  }
+
+  @override
+  void dispose() {
+    _wallCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadItems() async {
@@ -42,6 +55,11 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       _items = items;
       _loading = false;
     });
+    if (items.isNotEmpty) {
+      _wallCtrl.repeat();
+    } else {
+      _wallCtrl.stop();
+    }
   }
 
   /// 解析条目信息
@@ -141,6 +159,262 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     };
   }
 
+  bool _isDone(String status) =>
+      status == 'watched' || status == 'read' || status == 'completed';
+
+  /// 混合片单把各媒体状态归并为统一分组
+  String _bucket(String status) {
+    if (status.isEmpty) return 'none';
+    if (_isDone(status)) return 'done';
+    if (status == 'watching' || status == 'reading' || status == 'playing') return 'ing';
+    if (status == 'abandoned') return 'abandoned';
+    return 'want';
+  }
+
+  String _filterKey(_ResolvedItem r) =>
+      widget.playlist.type == 'all' ? _bucket(r.status) : (r.status.isEmpty ? 'none' : r.status);
+
+  /// 顶部斜向海报拼贴墙 + 片单信息
+  Widget _buildHeader(BuildContext context, Playlist playlist, List<_ResolvedItem> resolved) {
+    final covers = resolved
+        .map((r) => r.coverPath)
+        .where((p) => p != null && p.isNotEmpty)
+        .cast<String>()
+        .toList();
+
+    final total = resolved.length;
+    final done = resolved.where((r) => _isDone(r.status)).length;
+    final progressText = switch (playlist.type) {
+      'movie' => '看过 {done}/{total}部'.trf({'done': '$done', 'total': '$total'}),
+      'book' => '读过 {done}/{total}本'.trf({'done': '$done', 'total': '$total'}),
+      'game' => '通关 {done}/{total}款'.trf({'done': '$done', 'total': '$total'}),
+      _ => '已完成 {done}/{total}项'.trf({'done': '$done', 'total': '$total'}),
+    };
+    final d = playlist.updatedAt;
+    final dateStr = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+    final topPad = MediaQuery.of(context).padding.top + kToolbarHeight;
+
+    return SizedBox(
+      height: 330,
+      child: Stack(
+        fit: StackFit.expand,
+        clipBehavior: Clip.hardEdge,
+        children: [
+          // 斜向海报墙
+          if (covers.isNotEmpty)
+            _buildPosterWall(covers)
+          else
+            Container(color: const Color(0xFF2B2B36)),
+          // 压暗渐变
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.45),
+                  Colors.black.withValues(alpha: 0.25),
+                  Colors.black.withValues(alpha: 0.82),
+                ],
+                stops: const [0.0, 0.35, 1.0],
+              ),
+            ),
+          ),
+          // 文字信息
+          Padding(
+            padding: EdgeInsets.fromLTRB(20, topPad, 20, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Spacer(),
+                Text(
+                  playlist.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.white, height: 1.2),
+                ),
+                if (playlist.description.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    playlist.description,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.7)),
+                  ),
+                ],
+                if (playlist.type != 'all') ...[
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(3),
+                          child: LinearProgressIndicator(
+                            value: total == 0 ? 0 : done / total,
+                            minHeight: 5,
+                            backgroundColor: Colors.white.withValues(alpha: 0.22),
+                            valueColor: const AlwaysStoppedAnimation(Colors.white),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(progressText,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                Text(
+                  '更新时间: {date}'.trf({'date': dateStr}),
+                  style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.45)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 倾斜放大的海报拼贴 + 沿斜向无限滚动（双段相同网格平移，无缝循环）
+  Widget _buildPosterWall(List<String> covers) {
+    const cols = 6;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final h = constraints.maxHeight;
+        final wallW = w * 1.7;
+        final segH = h * 2.1; // 单段高度，也是一个循环的平移距离
+
+        Widget buildSegment() => SizedBox(
+              width: wallW,
+              height: segH,
+              child: GridView.builder(
+                padding: EdgeInsets.zero,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: cols,
+                  childAspectRatio: 0.7,
+                  crossAxisSpacing: 2,
+                  mainAxisSpacing: 2,
+                ),
+                itemCount: cols * 8,
+                itemBuilder: (context, i) {
+                  final path = covers[i % covers.length];
+                  return FadeInLocalImage(path: path, fit: BoxFit.cover);
+                },
+              ),
+            );
+
+        return ClipRect(
+          child: OverflowBox(
+            alignment: Alignment.center,
+            minWidth: 0,
+            minHeight: 0,
+            maxWidth: double.infinity,
+            maxHeight: double.infinity,
+            child: AnimatedBuilder(
+              animation: _wallCtrl,
+              builder: (context, _) {
+                return Transform.rotate(
+                  angle: -0.52,
+                  child: Transform.translate(
+                    offset: Offset(0, -_wallCtrl.value * segH),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [buildSegment(), buildSegment()],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 状态筛选 chip 行
+  Widget _buildFilterChips(BuildContext context, Playlist playlist, List<_ResolvedItem> resolved) {
+    final entries = <(String, String)>[];
+    void addIfPresent(String key, String label) {
+      if (resolved.any((r) => _filterKey(r) == key)) entries.add((key, label));
+    }
+
+    switch (playlist.type) {
+      case 'movie':
+        addIfPresent('none', '未看');
+        addIfPresent('want_to_watch', '想看');
+        addIfPresent('watching', '在看');
+        addIfPresent('watched', '已看');
+      case 'book':
+        addIfPresent('none', '未读');
+        addIfPresent('want_to_read', '想读');
+        addIfPresent('reading', '在读');
+        addIfPresent('read', '已读');
+      case 'game':
+        addIfPresent('none', '未玩');
+        addIfPresent('want_to_play', '想玩');
+        addIfPresent('playing', '在玩');
+        addIfPresent('completed', '已通关');
+        addIfPresent('abandoned', '弃游');
+      default:
+        addIfPresent('none', '未标记');
+        addIfPresent('want', '想看');
+        addIfPresent('ing', '在看');
+        addIfPresent('done', '已完成');
+        addIfPresent('abandoned', '已弃');
+    }
+
+    final colors = Theme.of(context).colorScheme;
+
+    Widget chip(String? key, String label, int count) {
+      final selected = _statusFilter == (key ?? 'all');
+      return GestureDetector(
+        onTap: () => setState(() => _statusFilter = key ?? 'all'),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: selected ? colors.primary : colors.surfaceContainerHighest.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            '$label $count',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              color: selected ? colors.onPrimary : colors.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+      child: SizedBox(
+        height: 36,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          children: [
+            chip(null, '全部'.tr, resolved.length),
+            const SizedBox(width: 8),
+            for (final e in entries) ...[
+              Builder(builder: (_) {
+                final count = resolved.where((r) => _filterKey(r) == e.$1).length;
+                return chip(e.$1, e.$2.tr, count);
+              }),
+              const SizedBox(width: 8),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
@@ -149,30 +423,38 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       orElse: () => widget.playlist,
     );
 
+    final showWall = !_loading && _items.isNotEmpty;
+    final addAction = IconButton(
+      icon: const Icon(Icons.add, size: 24),
+      onPressed: () async {
+        await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(builder: (_) => PlaylistAddItemPage(playlist: playlist)),
+        );
+        if (mounted) {
+          _loadItems();
+          provider.loadPlaylists();
+        }
+      },
+    );
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(playlist.name),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add, size: 22),
-            onPressed: () async {
-              await Navigator.push<bool>(
-                context,
-                MaterialPageRoute(builder: (_) => PlaylistAddItemPage(playlist: playlist)),
-              );
-              if (mounted) {
-                _loadItems();
-                provider.loadPlaylists();
-              }
-            },
-          ),
-        ],
-      ),
+      extendBodyBehindAppBar: showWall,
+      appBar: showWall
+          ? AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              foregroundColor: Colors.white,
+              iconTheme: const IconThemeData(color: Colors.white),
+              actions: [addAction],
+            )
+          : AppBar(title: Text(playlist.name), actions: [addAction]),
       body: _loading
           ? const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))
           : _items.isEmpty
               ? _buildEmpty(context)
-              : _buildList(context, provider),
+              : _buildList(context, provider, playlist),
     );
   }
 
@@ -199,47 +481,77 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     );
   }
 
-  Widget _buildList(BuildContext context, AppProvider provider) {
+  Widget _buildList(BuildContext context, AppProvider provider, Playlist playlist) {
     final resolved = _items
         .map((item) => _resolve(item, provider))
         .whereType<_ResolvedItem>()
         .toList();
 
-    return ReorderableListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: resolved.length,
-      onReorder: (oldIndex, newIndex) {
-        if (newIndex > oldIndex) newIndex--;
-        final list = List<_ResolvedItem>.from(resolved);
-        final item = list.removeAt(oldIndex);
-        list.insert(newIndex, item);
-        setState(() {
-          _items = list.map((r) => r.playlistItem).toList();
-        });
-        provider.reorderPlaylistItems(
-          widget.playlist.id,
-          _items.map((i) => i.id).toList(),
-        );
-      },
-      proxyDecorator: (child, index, animation) {
-        return AnimatedBuilder(
-          animation: animation,
-          builder: (_, __) {
-            final t = Curves.easeInOut.transform(animation.value);
-            return Transform.scale(
-              scale: 1.0 + 0.03 * t,
-              child: Opacity(opacity: 1.0 - 0.15 * t, child: child),
-            );
-          },
-        );
-      },
-      itemBuilder: (context, index) {
-        return _buildItem(context, resolved[index], provider);
-      },
+    final visible = _statusFilter == 'all'
+        ? resolved
+        : resolved.where((r) => _statusFilter == 'none' ? r.status.isEmpty : r.status == _statusFilter).toList();
+
+    final colors = Theme.of(context).colorScheme;
+
+    return Column(
+      children: [
+        // 固定的海报墙 Header，不随列表滚动
+        _buildHeader(context, playlist, resolved),
+        if (resolved.isNotEmpty && playlist.type != 'all') _buildFilterChips(context, playlist, resolved),
+        Expanded(
+          child: visible.isEmpty
+              ? Center(
+                  child: Text('该分类下暂无条目'.tr,
+                      style: TextStyle(fontSize: 13, color: colors.onSurface.withValues(alpha: 0.35))),
+                )
+              : ReorderableListView.builder(
+                  padding: const EdgeInsets.only(top: 12, bottom: 24),
+                  itemCount: visible.length,
+                  onReorder: (oldIndex, newIndex) {
+                    if (newIndex > oldIndex) newIndex--;
+                    final moved = visible[oldIndex].playlistItem;
+                    final full = List<PlaylistItem>.from(_items);
+                    final from = full.indexWhere((i) => i.id == moved.id);
+                    full.removeAt(from);
+                    int insertIndex;
+                    if (newIndex < visible.length) {
+                      final anchorId = visible[newIndex].playlistItem.id;
+                      insertIndex = full.indexWhere((i) => i.id == anchorId);
+                      if (insertIndex < 0) insertIndex = full.length;
+                    } else {
+                      insertIndex = full.length;
+                    }
+                    full.insert(insertIndex, moved);
+                    setState(() {
+                      _items = full;
+                    });
+                    provider.reorderPlaylistItems(
+                      widget.playlist.id,
+                      full.map((i) => i.id).toList(),
+                    );
+                  },
+                  proxyDecorator: (child, index, animation) {
+                    return AnimatedBuilder(
+                      animation: animation,
+                      builder: (_, __) {
+                        final t = Curves.easeInOut.transform(animation.value);
+                        return Transform.scale(
+                          scale: 1.0 + 0.03 * t,
+                          child: Opacity(opacity: 1.0 - 0.15 * t, child: child),
+                        );
+                      },
+                    );
+                  },
+                  itemBuilder: (context, index) {
+                    return _buildItem(context, visible[index], index, provider);
+                  },
+                ),
+        ),
+      ],
     );
   }
 
-  Widget _buildItem(BuildContext context, _ResolvedItem item, AppProvider provider) {
+  Widget _buildItem(BuildContext context, _ResolvedItem item, int index, AppProvider provider) {
     final colors = Theme.of(context).colorScheme;
     final type = item.type;
     final statusColor = _statusColor(item.status);
@@ -248,7 +560,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
 
     return Padding(
       key: Key(itemId),
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -316,7 +628,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                 _isHorizontalDrag = false;
               },
               child: ReorderableDelayedDragStartListener(
-                index: _items.indexOf(item.playlistItem),
+                index: index,
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(

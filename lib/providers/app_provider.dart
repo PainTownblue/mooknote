@@ -13,6 +13,7 @@ import '../data/book/book_excerpt_dao.dart';
 import '../data/game/game_dao.dart';
 import '../data/game/game_review_dao.dart';
 import '../data/game/game_screenshot_dao.dart';
+import '../data/game/game_completion_dao.dart';
 import '../data/playlist/playlist_dao.dart';
 import '../data/tag/tag_dao.dart';
 import '../data/person/person_dao.dart';
@@ -46,6 +47,7 @@ class AppProvider extends ChangeNotifier {
   final GameDao _gameDao = GameDao();
   final GameReviewDao _gameReviewDao = GameReviewDao();
   final GameScreenshotDao _gameScreenshotDao = GameScreenshotDao();
+  final GameCompletionDao _gameCompletionDao = GameCompletionDao();
   final PlaylistDao _playlistDao = PlaylistDao();
   final TagDao _tagDao = TagDao();
   final PersonDao _personDao = PersonDao();
@@ -116,6 +118,14 @@ class AppProvider extends ChangeNotifier {
   bool _showMovieCardDate = false;
   bool _showBookCardDate = false;
   bool _showGameCardDate = false;
+
+  // 各模块列表是否显示标题 / 评分
+  bool _showMovieTitle = true;
+  bool _showMovieRating = true;
+  bool _showBookTitle = true;
+  bool _showBookRating = true;
+  bool _showGameTitle = true;
+  bool _showGameRating = true;
 
   // 影视显示模式 (0: 观看状态, 1: 分类状态)
   int _movieDisplayMode = 0;
@@ -270,6 +280,12 @@ class AppProvider extends ChangeNotifier {
     _showMovieCardDate = userPrefs.showMovieCardDate;
     _showBookCardDate = userPrefs.showBookCardDate;
     _showGameCardDate = userPrefs.showGameCardDate;
+    _showMovieTitle = userPrefs.showMovieTitle;
+    _showMovieRating = userPrefs.showMovieRating;
+    _showBookTitle = userPrefs.showBookTitle;
+    _showBookRating = userPrefs.showBookRating;
+    _showGameTitle = userPrefs.showGameTitle;
+    _showGameRating = userPrefs.showGameRating;
     final defaultIndex = userPrefs.defaultMainTabIndex;
     // 桌面端且主页开启时，强制默认为主页
     if (PlatformUtils.isDesktop && userPrefs.showDesktopHomeTab) {
@@ -410,6 +426,12 @@ class AppProvider extends ChangeNotifier {
   bool get showMovieCardDate => _showMovieCardDate;
   bool get showBookCardDate => _showBookCardDate;
   bool get showGameCardDate => _showGameCardDate;
+  bool get showMovieTitle => _showMovieTitle;
+  bool get showMovieRating => _showMovieRating;
+  bool get showBookTitle => _showBookTitle;
+  bool get showBookRating => _showBookRating;
+  bool get showGameTitle => _showGameTitle;
+  bool get showGameRating => _showGameRating;
   int get movieDisplayMode => _movieDisplayMode;
   int get movieStatusBarStyle => _movieStatusBarStyle;
   int get movieGridCount => _movieGridCount;
@@ -833,6 +855,42 @@ class AppProvider extends ChangeNotifier {
   void setShowGameCardDate(bool enabled) {
     _showGameCardDate = enabled;
     UserPrefs().setShowGameCardDate(enabled);
+    notifyListeners();
+  }
+
+  void setShowMovieTitle(bool enabled) {
+    _showMovieTitle = enabled;
+    UserPrefs().setShowMovieTitle(enabled);
+    notifyListeners();
+  }
+
+  void setShowMovieRating(bool enabled) {
+    _showMovieRating = enabled;
+    UserPrefs().setShowMovieRating(enabled);
+    notifyListeners();
+  }
+
+  void setShowBookTitle(bool enabled) {
+    _showBookTitle = enabled;
+    UserPrefs().setShowBookTitle(enabled);
+    notifyListeners();
+  }
+
+  void setShowBookRating(bool enabled) {
+    _showBookRating = enabled;
+    UserPrefs().setShowBookRating(enabled);
+    notifyListeners();
+  }
+
+  void setShowGameTitle(bool enabled) {
+    _showGameTitle = enabled;
+    UserPrefs().setShowGameTitle(enabled);
+    notifyListeners();
+  }
+
+  void setShowGameRating(bool enabled) {
+    _showGameRating = enabled;
+    UserPrefs().setShowGameRating(enabled);
     notifyListeners();
   }
 
@@ -1317,6 +1375,50 @@ class AppProvider extends ChangeNotifier {
     return await _gameScreenshotDao.getScreenshotCount(gameId);
   }
 
+  // ========== 游戏通关记录相关方法 ==========
+
+  /// 获取游戏的所有通关记录
+  Future<List<GameCompletion>> getGameCompletions(String gameId) async {
+    return await _gameCompletionDao.getCompletionsByGameId(gameId);
+  }
+
+  /// 获取全部通关记录并按游戏 id 分组（供 Excel 导出）
+  Future<Map<String, List<GameCompletion>>> getGameCompletionsMap() async {
+    final all = await _gameCompletionDao.getAllCompletions();
+    final map = <String, List<GameCompletion>>{};
+    for (final c in all) {
+      map.putIfAbsent(c.gameId, () => []).add(c);
+    }
+    return map;
+  }
+
+  /// 添加通关记录
+  Future<void> addGameCompletion(GameCompletion completion) async {
+    await _gameCompletionDao.insertCompletion(completion);
+    await _touchParentUpdatedAt('games', completion.gameId);
+    debugPrint('[数据] 新增游戏通关记录《${_titleById(_games, completion.gameId, (g) => g.id, (g) => g.title)}》');
+    notifyListeners();
+  }
+
+  /// 更新通关记录
+  Future<void> updateGameCompletion(GameCompletion completion) async {
+    await _gameCompletionDao.updateCompletion(completion);
+    await _touchParentUpdatedAt('games', completion.gameId);
+    notifyListeners();
+  }
+
+  /// 删除通关记录
+  Future<void> removeGameCompletion(String id) async {
+    final completion = await _gameCompletionDao.getCompletionById(id);
+    await _gameCompletionDao.deleteCompletion(id);
+    if (completion != null) {
+      // 子组行删除不记墓碑，触碰父行 updated_at 让增量同步整组推送
+      await _touchParentUpdatedAt('games', completion.gameId);
+      debugPrint('[数据] 删除游戏通关记录《${_titleById(_games, completion.gameId, (g) => g.id, (g) => g.title)}》');
+    }
+    notifyListeners();
+  }
+
   // ========== 书评相关方法 ==========
 
   /// 获取书籍的所有书评
@@ -1585,6 +1687,7 @@ class AppProvider extends ChangeNotifier {
       for (final id in gameIds) {
         await txn.delete('game_reviews', where: 'game_id = ?', whereArgs: [id]);
         await txn.delete('game_screenshots', where: 'game_id = ?', whereArgs: [id]);
+        await txn.delete('game_completions', where: 'game_id = ?', whereArgs: [id]);
         await txn.delete('games', where: 'id = ?', whereArgs: [id]);
       }
       for (final review in deletedMovieReviews) {

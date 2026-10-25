@@ -37,22 +37,26 @@ class BookListItem extends StatelessWidget {
           Expanded(
             child: _buildCoverWithDate(colors),
           ),
-          const SizedBox(height: 8),
-          Text(
-            book.title,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: colors.onSurface,
+          if (UserPrefs().showBookTitle) ...[
+            const SizedBox(height: 8),
+            Text(
+              book.title,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: colors.onSurface,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 4),
-          if (book.rating != null)
-            AnimatedStarRating(rating: book.rating!, starSize: 12, showNumber: true)
-          else
-            const SizedBox(height: 16),
+          ],
+          if (UserPrefs().showBookRating) ...[
+            const SizedBox(height: 4),
+            if (book.rating != null)
+              AnimatedStarRating(rating: book.rating!, starSize: 12, showNumber: true)
+            else
+              const SizedBox(height: 16),
+          ],
         ],
       ),
       ),

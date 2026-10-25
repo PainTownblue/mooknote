@@ -393,6 +393,8 @@ class _GameTabViewState extends State<_GameTabView>
     super.build(context);
     final colors = Theme.of(context).colorScheme;
     final layoutStyle = context.select<AppProvider, int>((p) => p.gameLayoutStyle);
+    context.select<AppProvider, bool>((p) => p.showGameTitle);
+    context.select<AppProvider, bool>((p) => p.showGameRating);
 
     final content = () {
       if (_items.isEmpty && _isLoading) return _buildSkeleton(layoutStyle);
@@ -500,6 +502,8 @@ class _GameTabViewState extends State<_GameTabView>
 
   Widget _buildListCard(Game game) {
     final colors = Theme.of(context).colorScheme;
+    final showTitle = context.select<AppProvider, bool>((p) => p.showGameTitle);
+    final showRating = context.select<AppProvider, bool>((p) => p.showGameRating);
     return GestureDetector(
       onTap: () => _onGameTap(game),
       onLongPress: () => _showDeleteDialog(context, game),
@@ -519,14 +523,17 @@ class _GameTabViewState extends State<_GameTabView>
           ),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(game.title, maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: colors.onSurface)),
-            const SizedBox(height: 3),
+            if (showTitle)
+              Text(game.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: colors.onSurface)),
+            SizedBox(height: showTitle ? 3 : 0),
             Text(_buildSubtitle(game), maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 12, color: colors.onSurface.withValues(alpha: 0.35))),
-            const SizedBox(height: 6),
-            if (game.rating != null) AnimatedStarRating(rating: game.rating!, starSize: 12, showNumber: true)
-            else const SizedBox(height: 14),
+            if (showRating) ...[
+              const SizedBox(height: 6),
+              if (game.rating != null) AnimatedStarRating(rating: game.rating!, starSize: 12, showNumber: true)
+              else const SizedBox(height: 14),
+            ],
           ])),
           const SizedBox(width: 8),
           Icon(Icons.chevron_right, color: colors.onSurface.withValues(alpha: 0.2), size: 20),
@@ -560,6 +567,8 @@ class _GameTabViewState extends State<_GameTabView>
 
   Widget _buildCoverCard(Game game) {
     final colors = Theme.of(context).colorScheme;
+    final showTitle = context.select<AppProvider, bool>((p) => p.showGameTitle);
+    final showRating = context.select<AppProvider, bool>((p) => p.showGameRating);
     return GestureDetector(
       onTap: () => _onGameTap(game),
       onLongPress: () => _showDeleteDialog(context, game),
@@ -593,15 +602,17 @@ class _GameTabViewState extends State<_GameTabView>
           Positioned(
             left: 14, right: 14, bottom: 14,
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Text(game.title, maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Colors.white)),
-              const SizedBox(height: 4),
+              if (showTitle) ...[
+                Text(game.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Colors.white)),
+                const SizedBox(height: 4),
+              ],
               Row(children: [
                 Expanded(
                   child: Text(_buildSubtitle(game), maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.7))),
                 ),
-                if (game.rating != null) ...[
+                if (showRating && game.rating != null) ...[
                   const SizedBox(width: 8),
                   Icon(Icons.star_rounded, size: 16, color: Colors.amber.shade400),
                   const SizedBox(width: 2),

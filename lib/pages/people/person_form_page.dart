@@ -10,6 +10,7 @@ import '../../models/data_models.dart';
 import '../../providers/app_provider.dart';
 import '../../l10n/app_strings.dart';
 import '../../utils/image_path_helper.dart';
+import '../../utils/image_normalizer.dart';
 import '../../utils/toast_util.dart';
 import '../../widgets/fade_in_local_image.dart';
 import '../../widgets/genre_selector_page.dart';
@@ -308,8 +309,13 @@ class _PersonFormPageState extends State<PersonFormPage> {
       final XFile? picked =
           await _picker.pickImage(source: ImageSource.gallery);
       if (picked == null) return;
-      // 先读取原图字节，进入裁剪页调整圆形区域
-      final bytes = await File(picked.path).readAsBytes();
+      // 先读取原图字节，归一化为 PNG（兼容 HEIC 等格式）后进入裁剪页
+      final raw = await File(picked.path).readAsBytes();
+      final bytes = await normalizeToPng(raw);
+      if (bytes == null) {
+        if (mounted) ToastUtil.show(context, '无法识别该图片，请换一张 JPG/PNG 图片'.tr);
+        return;
+      }
       if (!mounted) return;
       final cropped = await Navigator.push<Uint8List>(
         context,
