@@ -320,6 +320,10 @@ class UserPrefs {
   int get movieDisplayMode => prefs.getInt('movieDisplayMode') ?? 0;
   Future<bool> setMovieDisplayMode(int value) => prefs.setInt('movieDisplayMode', value);
 
+  /// 书籍显示模式 (0: 阅读状态, 1: 分类状态)
+  int get bookDisplayMode => prefs.getInt('bookDisplayMode') ?? 0;
+  Future<bool> setBookDisplayMode(int value) => prefs.setInt('bookDisplayMode', value);
+
   /// 影视状态栏样式 (0: 胶囊滑块, 1: 下划线, 2: 芯片组, 3: 下拉)
   int get movieStatusBarStyle => prefs.getInt('movieStatusBarStyle') ?? 0;
   Future<bool> setMovieStatusBarStyle(int value) => prefs.setInt('movieStatusBarStyle', value);
@@ -534,11 +538,19 @@ class UserPrefs {
   String get tmdbAuthType => prefs.getString('tmdbAuthType') ?? 'bearer';
   Future<bool> setTmdbAuthType(String value) => prefs.setString('tmdbAuthType', value);
 
+  /// TMDB 专用 HTTP 代理（host:port，空=不走代理）
+  String get tmdbProxy => prefs.getString('tmdbProxy') ?? '';
+  Future<bool> setTmdbProxy(String value) => prefs.setString('tmdbProxy', value);
+
   // ========== Bangumi 搜索 ==========
 
   /// Bangumi Access Token
   String get bangumiAccessToken => prefs.getString('bangumiAccessToken') ?? '';
   Future<bool> setBangumiAccessToken(String value) => prefs.setString('bangumiAccessToken', value);
+
+  /// Bangumi 专用 HTTP 代理（host:port，空=不走代理）
+  String get bangumiProxy => prefs.getString('bangumiProxy') ?? '';
+  Future<bool> setBangumiProxy(String value) => prefs.setString('bangumiProxy', value);
 
   /// 搜索页模式: 0=本地, 1=增强, 2=TMDB, 3=Bangumi（从旧版 lastSearchOnline 迁移）
   int get lastSearchMode =>

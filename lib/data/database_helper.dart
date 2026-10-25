@@ -81,7 +81,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 51,
+      version: 53,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -513,6 +513,19 @@ class DatabaseHelper {
       // 游戏通关记录表（一个游戏可有多条通关记录）
       await _createGameCompletionsTable(db);
     }
+    if (oldVersion < 52) {
+      // books 添加 category 列（书籍分类）
+      final cols = await db.rawQuery('PRAGMA table_info(books)');
+      if (!cols.any((col) => col['name'] == 'category')) {
+        await db.execute("ALTER TABLE books ADD COLUMN category TEXT NOT NULL DEFAULT 'book'");
+      }
+    }
+    if (oldVersion < 53) {
+      // 影视分集 / 书籍分章 / 游戏关卡 记录表
+      await _createMovieEpisodesTable(db);
+      await _createBookChaptersTable(db);
+      await _createGameLevelsTable(db);
+    }
   }
 
   /// 游戏通关记录表（v51，onCreate 与迁移共用）
@@ -529,6 +542,69 @@ class DatabaseHelper {
         FOREIGN KEY (game_id) REFERENCES games (id)
       )
     ''');
+  }
+
+  /// 影视分集记录表（v53，onCreate 与迁移共用）
+  Future<void> _createMovieEpisodesTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS movie_episodes (
+        id TEXT PRIMARY KEY,
+        movie_id TEXT NOT NULL,
+        episode_no INTEGER NOT NULL DEFAULT 0,
+        title TEXT DEFAULT '',
+        watched INTEGER DEFAULT 0,
+        watch_date TEXT,
+        rating REAL,
+        review TEXT DEFAULT '',
+        images TEXT DEFAULT '[]',
+        is_deleted INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_movie_episodes_movie ON movie_episodes(movie_id)');
+  }
+
+  /// 书籍分章记录表（v53，onCreate 与迁移共用）
+  Future<void> _createBookChaptersTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS book_chapters (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        chapter_no INTEGER NOT NULL DEFAULT 0,
+        title TEXT DEFAULT '',
+        read INTEGER DEFAULT 0,
+        read_date TEXT,
+        rating REAL,
+        review TEXT DEFAULT '',
+        images TEXT DEFAULT '[]',
+        is_deleted INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_book_chapters_book ON book_chapters(book_id)');
+  }
+
+  /// 游戏关卡记录表（v53，onCreate 与迁移共用）
+  Future<void> _createGameLevelsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS game_levels (
+        id TEXT PRIMARY KEY,
+        game_id TEXT NOT NULL,
+        level_no INTEGER NOT NULL DEFAULT 0,
+        title TEXT DEFAULT '',
+        cleared INTEGER DEFAULT 0,
+        clear_date TEXT,
+        rating REAL,
+        review TEXT DEFAULT '',
+        images TEXT DEFAULT '[]',
+        is_deleted INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_game_levels_game ON game_levels(game_id)');
   }
 
   /// 图片元数据表（v49，onCreate 与迁移共用）
@@ -1000,6 +1076,7 @@ class DatabaseHelper {
         summary TEXT,
         rating REAL,
         status TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'book',
         isbn TEXT,
         publish_date TEXT,
         start_date TEXT,
@@ -1165,6 +1242,11 @@ class DatabaseHelper {
 
     // 游戏通关记录表
     await _createGameCompletionsTable(db);
+
+    // 影视分集 / 书籍分章 / 游戏关卡 记录表
+    await _createMovieEpisodesTable(db);
+    await _createBookChaptersTable(db);
+    await _createGameLevelsTable(db);
 
     // 片单表
     await db.execute('''

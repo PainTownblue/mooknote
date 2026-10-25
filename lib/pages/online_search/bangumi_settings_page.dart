@@ -15,6 +15,7 @@ class BangumiSettingsPage extends StatefulWidget {
 class _BangumiSettingsPageState extends State<BangumiSettingsPage> {
   final _userPrefs = UserPrefs();
   final _tokenController = TextEditingController();
+  final _proxyController = TextEditingController();
 
   bool _saved = false; // 是否已有保存的 Token
   bool _testing = false;
@@ -27,21 +28,22 @@ class _BangumiSettingsPageState extends State<BangumiSettingsPage> {
     super.initState();
     final token = _userPrefs.bangumiAccessToken;
     _tokenController.text = token;
+    _proxyController.text = _userPrefs.bangumiProxy;
     _saved = token.isNotEmpty;
-    if (_saved) _testAndSave(silent: true);
   }
 
   @override
   void dispose() {
     _tokenController.dispose();
+    _proxyController.dispose();
     super.dispose();
   }
 
-  /// 测试 Token；成功则保存，失败不保存
-  Future<void> _testAndSave({bool silent = false}) async {
+  /// 仅测试当前输入的 Token/代理，不保存
+  Future<void> _test() async {
     final token = _tokenController.text.trim();
     if (token.isEmpty) {
-      if (!silent) ToastUtil.show(context, '请输入 Access Token'.tr);
+      ToastUtil.show(context, '请输入 Access Token'.tr);
       return;
     }
     setState(() {
@@ -50,38 +52,58 @@ class _BangumiSettingsPageState extends State<BangumiSettingsPage> {
       _message = null;
     });
 
-    final status = await BangumiService.testToken(token);
+    final status = await BangumiService.testToken(token,
+        proxy: _proxyController.text.trim());
     if (!mounted) return;
 
     switch (status) {
       case BangumiTestStatus.ok:
-        await _userPrefs.setBangumiAccessToken(token);
-        BangumiService.instance.configure(token);
         setState(() {
-          _saved = true;
           _valid = true;
-          _message = '测试成功，Token 已保存'.tr;
+          _message = '测试成功，可以保存'.tr;
         });
         break;
       case BangumiTestStatus.invalidToken:
         setState(() {
           _valid = false;
-          _message = 'Token 无效，未保存'.tr;
+          _message = 'Token 无效'.tr;
         });
         break;
       case BangumiTestStatus.networkError:
         setState(() {
           _valid = false;
-          _message = '网络不通，无法连接 Bangumi 服务器，未保存'.tr;
+          _message = '网络不通，无法连接 Bangumi 服务器'.tr;
         });
         break;
     }
     setState(() => _testing = false);
   }
 
+  /// 直接保存当前输入（Token 与代理），不强制要求测试
+  Future<void> _save() async {
+    final token = _tokenController.text.trim();
+    final proxy = _proxyController.text.trim();
+    if (token.isEmpty) {
+      ToastUtil.show(context, '请输入 Access Token'.tr);
+      return;
+    }
+    await _userPrefs.setBangumiAccessToken(token);
+    await _userPrefs.setBangumiProxy(proxy);
+    BangumiService.instance.configure(token, proxy: proxy);
+    if (!mounted) return;
+    setState(() {
+      _saved = true;
+      _valid = true;
+      _message = '已保存'.tr;
+    });
+    ToastUtil.show(context, '保存成功'.tr);
+  }
+
   Future<void> _clear() async {
     await _userPrefs.setBangumiAccessToken('');
-    BangumiService.instance.configure('');
+    BangumiService.instance.configure('',
+        proxy: _proxyController.text.trim());
+    if (!mounted) return;
     setState(() {
       _saved = false;
       _valid = null;
@@ -105,8 +127,12 @@ class _BangumiSettingsPageState extends State<BangumiSettingsPage> {
           _buildSectionLabel(colors, 'Bangumi Access Token'.tr),
           const SizedBox(height: 8),
           _buildTokenInput(colors),
+          const SizedBox(height: 20),
+          _buildSectionLabel(colors, 'HTTP 代理地址（选填）'.tr),
+          const SizedBox(height: 8),
+          _buildProxyInput(colors),
           const SizedBox(height: 28),
-          _buildSaveButton(colors),
+          _buildButtons(colors),
           if (_saved) ...[
             const SizedBox(height: 12),
             _buildClearButton(colors),
@@ -251,26 +277,92 @@ class _BangumiSettingsPageState extends State<BangumiSettingsPage> {
     );
   }
 
-  Widget _buildSaveButton(ColorScheme colors) {
-    return GestureDetector(
-      onTap: _testing ? null : () => _testAndSave(),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: _testing
-              ? colors.primary.withValues(alpha: 0.5)
-              : colors.primary,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Center(
-          child: Text('测试并保存'.tr,
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: colors.onPrimary)),
-        ),
+  Widget _buildProxyInput(ColorScheme colors) {
+    return Container(
+      height: 40,
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colors.outlineVariant, width: 0.5),
       ),
+      child: Row(
+        children: [
+          const SizedBox(width: 12),
+          Icon(Icons.vpn_lock_outlined,
+              size: 16, color: colors.onSurface.withValues(alpha: 0.3)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _proxyController,
+              style: TextStyle(fontSize: 13, color: colors.onSurface),
+              decoration: InputDecoration(
+                hintText: '如 127.0.0.1:7890（仅支持 HTTP 代理）'.tr,
+                hintStyle: TextStyle(
+                    fontSize: 13,
+                    color: colors.onSurface.withValues(alpha: 0.3)),
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildButtons(ColorScheme colors) {
+    return Row(
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: 44,
+            child: OutlinedButton(
+              onPressed: _testing ? null : () => _test(),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: colors.outlineVariant),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              child: _testing
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          color: colors.onSurface.withValues(alpha: 0.4)))
+                  : Text('测试连接'.tr,
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: colors.onSurface)),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: SizedBox(
+            height: 44,
+            child: ElevatedButton(
+              onPressed: _testing ? null : _save,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colors.primary,
+                foregroundColor: colors.onPrimary,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              child: Text('保存'.tr,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -313,6 +405,7 @@ class _BangumiSettingsPageState extends State<BangumiSettingsPage> {
           _tip(colors, '在 bgm.tv 登录后，于 设置 → 开发者 → Access Token 页面创建令牌'.tr),
           _tip(colors, '支持搜索动画、书籍、游戏、三次元条目'.tr),
           _tip(colors, '需要设备能正常访问 Bangumi 服务器'.tr),
+          _tip(colors, '无法直连时，可填写本地 HTTP 代理地址，仅对 Bangumi 接口生效（不支持 SOCKS5）'.tr),
           _tip(colors, 'Token 仅保存在本地，用于搜索条目信息'.tr),
         ],
       ),

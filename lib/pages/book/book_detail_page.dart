@@ -16,6 +16,7 @@ import 'book_reviews_page.dart';
 import 'book_excerpts_page.dart';
 import 'book_share_page.dart';
 import '../character/character_list_page.dart';
+import '../progress/progress_pages.dart';
 import '../../widgets/app_overlay.dart';
 import 'package:mooknote/l10n/app_strings.dart';
 
@@ -590,6 +591,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: colors.onSurface)),
           ],
           _buildStatusTag(book),
+          _buildCategoryTag(book),
         ]),
         const SizedBox(height: 8),
         Text('添加于 {date}'.trf({'date': _formatDate(book.createdAt)}),
@@ -714,6 +716,13 @@ class _BookDetailPageState extends State<BookDetailPage> {
         Text('更多'.tr, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: colors.onSurface)),
       ]),
       const SizedBox(height: 12),
+      ProgressEntryCard(
+        parentId: book.id,
+        parentTitle: book.title,
+        config: ProgressConfig.book,
+        icon: Icons.menu_book_outlined,
+      ),
+      const SizedBox(height: 10),
       _buildExtraSectionItem(
         icon: Icons.rate_review_outlined,
         title: '书评'.tr,
@@ -1137,6 +1146,8 @@ class _BookDetailPageState extends State<BookDetailPage> {
                 const SizedBox(width: 16),
               ],
               _buildStatusTag(book),
+              const SizedBox(width: 8),
+              _buildCategoryTag(book),
             ],
           ),
           const SizedBox(height: 8),
@@ -1196,6 +1207,34 @@ class _BookDetailPageState extends State<BookDetailPage> {
           fontSize: 12,
           color: textColor,
           fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryTag(Book book) {
+    final colors = Theme.of(context).colorScheme;
+    const labels = {
+      'book': '书籍',
+      'novel': '小说',
+      'comic': '漫画',
+      'newspaper': '报刊',
+      'paper': '论文',
+    };
+    final label = labels[book.category];
+    if (label == null) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label.tr,
+        style: TextStyle(
+          fontSize: 12,
+          color: colors.onSurface.withValues(alpha: 0.5),
+          fontWeight: FontWeight.w500,
         ),
       ),
     );
@@ -1584,6 +1623,13 @@ class _BookDetailPageState extends State<BookDetailPage> {
             ],
           ),
           const SizedBox(height: 16),
+          ProgressEntryCard(
+            parentId: book.id,
+            parentTitle: book.title,
+            config: ProgressConfig.book,
+            icon: Icons.menu_book_outlined,
+          ),
+          const SizedBox(height: 12),
           _buildExtraSectionItem(
             icon: Icons.rate_review_outlined,
             title: '书评'.tr,
@@ -1621,6 +1667,14 @@ class _BookDetailPageState extends State<BookDetailPage> {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         children: [
+          ProgressEntryCard(
+            parentId: book.id,
+            parentTitle: book.title,
+            config: ProgressConfig.book,
+            icon: Icons.menu_book_outlined,
+            frosted: true,
+          ),
+          const SizedBox(height: 12),
           _buildFrostedExtraItem(
             icon: Icons.rate_review_outlined,
             title: '书评'.tr,

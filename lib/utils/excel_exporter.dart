@@ -8,7 +8,7 @@ import '../models/data_models.dart';
 /// 数据导出为 Excel 文件
 class ExcelExporter {
   /// 导出影视数据，返回生成的文件；传入 reviews 时附带影评 sheet
-  static Future<File> exportMovies(List<Movie> movies, {List<MovieReview>? reviews}) async {
+  static Future<File> exportMovies(List<Movie> movies, {List<MovieReview>? reviews, List<MovieEpisode>? episodes}) async {
     final excel = Excel.createExcel();
     final sheet = excel['影视'.tr];
 
@@ -66,11 +66,36 @@ class ExcelExporter {
       );
     }
 
+    if (episodes != null) {
+      final titles = {for (final m in movies) m.id: m.title};
+      _appendProgressSheet(
+        excel,
+        '分集'.tr,
+        '影视名称'.tr,
+        '集号'.tr,
+        '已观看'.tr,
+        '观看日期'.tr,
+        [
+          for (final e in episodes)
+            [
+              titles[e.movieId] ?? '',
+              '${e.episodeNo}',
+              e.title,
+              e.watched ? '是'.tr : '否'.tr,
+              _fmtDate(e.watchDate),
+              e.rating?.toString() ?? '',
+              e.review,
+              '${e.images.length}',
+            ],
+        ],
+      );
+    }
+
     return _save(excel, '影视'.tr);
   }
 
   /// 导出阅读数据；传入 reviews 时附带书评 sheet
-  static Future<File> exportBooks(List<Book> books, {List<BookReview>? reviews}) async {
+  static Future<File> exportBooks(List<Book> books, {List<BookReview>? reviews, List<BookChapter>? chapters}) async {
     final excel = Excel.createExcel();
     final sheet = excel['阅读'.tr];
 
@@ -124,11 +149,36 @@ class ExcelExporter {
       );
     }
 
+    if (chapters != null) {
+      final titles = {for (final b in books) b.id: b.title};
+      _appendProgressSheet(
+        excel,
+        '章节'.tr,
+        '书籍名称'.tr,
+        '章节号'.tr,
+        '已阅读'.tr,
+        '阅读日期'.tr,
+        [
+          for (final c in chapters)
+            [
+              titles[c.bookId] ?? '',
+              '${c.chapterNo}',
+              c.title,
+              c.read ? '是'.tr : '否'.tr,
+              _fmtDate(c.readDate),
+              c.rating?.toString() ?? '',
+              c.review,
+              '${c.images.length}',
+            ],
+        ],
+      );
+    }
+
     return _save(excel, '阅读'.tr);
   }
 
   /// 导出游戏数据；传入 reviews 时附带游戏评价 sheet，传入 completions 时附带通关时间
-  static Future<File> exportGames(List<Game> games, {List<GameReview>? reviews, Map<String, List<GameCompletion>>? completions}) async {
+  static Future<File> exportGames(List<Game> games, {List<GameReview>? reviews, Map<String, List<GameCompletion>>? completions, List<GameLevel>? levels}) async {
     final excel = Excel.createExcel();
     final sheet = excel['游戏'.tr];
 
@@ -192,6 +242,31 @@ class ExcelExporter {
       );
     }
 
+    if (levels != null) {
+      final titles = {for (final g in games) g.id: g.title};
+      _appendProgressSheet(
+        excel,
+        '关卡'.tr,
+        '游戏名称'.tr,
+        '关卡号'.tr,
+        '已通关'.tr,
+        '通关日期'.tr,
+        [
+          for (final l in levels)
+            [
+              titles[l.gameId] ?? '',
+              '${l.levelNo}',
+              l.title,
+              l.cleared ? '是'.tr : '否'.tr,
+              _fmtDate(l.clearDate),
+              l.rating?.toString() ?? '',
+              l.review,
+              '${l.images.length}',
+            ],
+        ],
+      );
+    }
+
     return _save(excel, '游戏'.tr);
   }
 
@@ -223,6 +298,20 @@ class ExcelExporter {
 
   static List<CellValue?> _row(List<String> values) {
     return values.map((v) => TextCellValue(v)).toList();
+  }
+
+  /// 追加分集/章节/关卡进度 sheet
+  static void _appendProgressSheet(
+      Excel excel, String sheetName, String entityHeader, String seqHeader,
+      String doneHeader, String dateHeader, List<List<String>> rows) {
+    final sheet = excel[sheetName];
+    sheet.appendRow(_row([
+      entityHeader, seqHeader, '名称'.tr, doneHeader, dateHeader,
+      '评分'.tr, '评价'.tr, '截图数'.tr,
+    ]));
+    for (final r in rows) {
+      sheet.appendRow(_row(r));
+    }
   }
 
   /// 追加评论 sheet（影评/书评/游戏评价共用）

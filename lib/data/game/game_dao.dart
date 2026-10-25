@@ -176,6 +176,8 @@ class GameDao {
     return await db.transaction((txn) async {
       await txn.delete('game_reviews', where: 'game_id = ?', whereArgs: [id]);
       await txn.delete('game_screenshots', where: 'game_id = ?', whereArgs: [id]);
+      await txn.delete('game_completions', where: 'game_id = ?', whereArgs: [id]);
+      await txn.delete('game_levels', where: 'game_id = ?', whereArgs: [id]);
       await txn.delete('game_people', where: 'game_id = ?', whereArgs: [id]);
       await txn.delete('game_characters', where: 'game_id = ?', whereArgs: [id]);
       await PlaylistDao.removeMediaFromPlaylists(txn, id, 'game');

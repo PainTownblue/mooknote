@@ -287,6 +287,7 @@ class MovieDao {
     return await db.transaction((txn) async {
       await txn.delete('movie_reviews', where: 'movie_id = ?', whereArgs: [id]);
       await txn.delete('movie_posters', where: 'movie_id = ?', whereArgs: [id]);
+      await txn.delete('movie_episodes', where: 'movie_id = ?', whereArgs: [id]);
       await txn.delete('movie_people', where: 'movie_id = ?', whereArgs: [id]);
       await txn.delete('movie_characters', where: 'movie_id = ?', whereArgs: [id]);
       await PlaylistDao.removeMediaFromPlaylists(txn, id, 'movie');

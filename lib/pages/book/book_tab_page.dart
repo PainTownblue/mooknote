@@ -8,6 +8,7 @@ import '../../providers/app_provider.dart';
 import '../../utils/responsive.dart';
 import '../../utils/user_prefs.dart';
 import '../../widgets/book_status_bar.dart';
+import '../../widgets/book_category_bar.dart';
 import '../../widgets/book_list_item.dart';
 import '../../widgets/year_grid_view.dart';
 import '../../widgets/animated_star_rating.dart';
@@ -60,11 +61,14 @@ class _BookTabPageState extends State<BookTabPage> {
     super.dispose();
   }
 
-  int _pageCountFor(AppProvider p) => p.bookshelfMode ? 1 : 4;
+  int _pageCountFor(AppProvider p) =>
+      p.bookshelfMode ? 1 : (p.bookDisplayMode == 1 ? BookCategoryBar.count : 4);
 
-  int _activeIndexFor(AppProvider p) => p.bookshelfMode ? 0 : p.bookStatusIndex;
+  int _activeIndexFor(AppProvider p) =>
+      p.bookshelfMode ? 0 : (p.bookDisplayMode == 1 ? p.bookCategoryIndex : p.bookStatusIndex);
 
-  int _modeSignature(AppProvider p) => p.bookshelfMode ? 1 : 0;
+  int _modeSignature(AppProvider p) =>
+      (p.bookshelfMode ? 1 : 0) * 1000 + (p.bookDisplayMode == 1 ? 1 : 0);
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +77,10 @@ class _BookTabPageState extends State<BookTabPage> {
 
     return Column(
       children: [
-        if (!isWallMode) const BookStatusBar(),
+        if (!isWallMode)
+          provider.bookDisplayMode == 1
+              ? const BookCategoryBar()
+              : const BookStatusBar(),
         Expanded(
           child: Stack(
             children: [
@@ -88,21 +95,26 @@ class _BookTabPageState extends State<BookTabPage> {
 
   Widget _buildPageView(AppProvider provider) {
     final wall = provider.bookshelfMode;
+    final isCategory = provider.bookDisplayMode == 1;
     final pageCount = _pageCountFor(provider);
-    final mode = wall ? 1 : 0;
+    final mode = wall ? 2 : (isCategory ? 1 : 0);
 
     // (a) 首次构建作为基线，不当成模式切换
     if (!_modeInitialized) {
       _modeInitialized = true;
       _lastModeSignature = _modeSignature(provider);
     }
-    // (b) 模式切换（书架 <-> 状态）：跳到第 0 页 + 重置索引
+    // (b) 模式切换（wall 切换 / displayMode 0<->1）：跳到第 0 页 + 重置索引
     else if (_modeSignature(provider) != _lastModeSignature) {
       _lastModeSignature = _modeSignature(provider);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_pageController.hasClients) return;
         _currentPage = 0;
-        if (!wall) provider.setBookStatusIndex(0);
+        if (isCategory) {
+          provider.setBookCategoryIndex(0);
+        } else if (!wall) {
+          provider.setBookStatusIndex(0);
+        }
         _pageController.jumpToPage(0);
       });
     }
@@ -190,10 +202,15 @@ class _BookTabPageState extends State<BookTabPage> {
   void _onPageChanged(int index, AppProvider provider) {
     _currentPage = index;
     final wall = provider.bookshelfMode;
-    final cur = wall ? 0 : provider.bookStatusIndex;
+    final isCategory = provider.bookDisplayMode == 1;
+    final cur = wall ? 0 : (isCategory ? provider.bookCategoryIndex : provider.bookStatusIndex);
     // 回显守卫：仅在真实拖动导致索引变化时推送，避免死循环
     if (cur != index) {
-      if (!wall) provider.setBookStatusIndex(index);
+      if (isCategory) {
+        provider.setBookCategoryIndex(index);
+      } else if (!wall) {
+        provider.setBookStatusIndex(index);
+      }
     }
   }
 }
@@ -201,7 +218,7 @@ class _BookTabPageState extends State<BookTabPage> {
 /// 单页：独立持有列表数据、滚动与分页状态，滑走再滑回保留状态
 class _BookTabView extends StatefulWidget {
   final int index; // 0..pageCount-1
-  final int mode; // 0=status, 1=wall(书架)
+  final int mode; // 0=status, 1=category, 2=wall(书架)
   const _BookTabView({super.key, required this.index, required this.mode});
 
   @override
@@ -223,6 +240,7 @@ class _BookTabViewState extends State<_BookTabView>
   int _prevSortMode = -1;
 
   String? get _status => widget.mode == 0 ? _bookStatusMap[widget.index] : null;
+  String? get _category => widget.mode == 1 ? BookCategoryBar.categoryValue(widget.index) : null;
 
   @override
   bool get wantKeepAlive => true;
@@ -308,10 +326,11 @@ class _BookTabViewState extends State<_BookTabView>
   Future<void> _loadFirst() async {
     final provider = context.read<AppProvider>();
     final sortMode = UserPrefs().effectiveBookSortMode;
+    if (!mounted) return; // _refresh 的 await 之后可能已被 dispose
     _initialized = true;
     setState(() { _isLoading = true; _offset = 0; _hasMore = true; });
     try {
-      final list = await provider.loadBooksPaged(status: _status, offset: 0, sortMode: sortMode);
+      final list = await provider.loadBooksPaged(status: _status, category: _category, offset: 0, sortMode: sortMode);
       if (!mounted) return;
       setState(() {
         _items.clear();
@@ -334,7 +353,7 @@ class _BookTabViewState extends State<_BookTabView>
     final provider = context.read<AppProvider>();
     final sortMode = UserPrefs().effectiveBookSortMode;
     try {
-      final list = await provider.loadBooksPaged(status: _status, offset: _offset, sortMode: sortMode);
+      final list = await provider.loadBooksPaged(status: _status, category: _category, offset: _offset, sortMode: sortMode);
       if (!mounted) return;
       setState(() {
         _items.addAll(list);
@@ -648,13 +667,21 @@ class _BookTabViewState extends State<_BookTabView>
 
   Widget _buildEmptyState() {
     final colors = Theme.of(context).colorScheme;
-    final statusText = widget.mode == 1 ? '' : ['已读'.tr, '在读'.tr, '想读'.tr, '弃读'.tr][widget.index];
+    final String emptyText;
+    if (widget.mode == 2) {
+      emptyText = '暂无书籍'.tr;
+    } else if (widget.mode == 1) {
+      emptyText = '暂无 {x}'.trf({'x': BookCategoryBar.categoryLabel(widget.index).tr});
+    } else {
+      final statusText = ['已读'.tr, '在读'.tr, '想读'.tr, '弃读'.tr][widget.index];
+      emptyText = '暂无{status}的书籍'.trf({'status': statusText});
+    }
     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       Container(width: 80, height: 80,
           decoration: BoxDecoration(color: colors.surfaceContainerHighest, borderRadius: BorderRadius.circular(20)),
           child: Icon(Icons.menu_book_outlined, size: 40, color: colors.onSurface.withValues(alpha: 0.25))),
       const SizedBox(height: 20),
-      Text(widget.mode == 1 ? '暂无书籍'.tr : '暂无{status}的书籍'.trf({'status': statusText}),
+      Text(emptyText,
           style: TextStyle(fontSize: 16, color: colors.onSurface.withValues(alpha: 0.4))),
     ]));
   }

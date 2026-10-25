@@ -91,6 +91,7 @@ String? _describeKey(String key) {
     'bookStatusBarStyle': '阅读状态栏样式',
     'gameStatusBarStyle': '游戏状态栏样式',
     'movieDisplayMode': '影视显示模式',
+    'bookDisplayMode': '书籍显示模式',
     'movieGridCount': '影视网格列数',
     'bookGridCount': '阅读网格列数',
     'gameGridCount': '游戏网格列数',

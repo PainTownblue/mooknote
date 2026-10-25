@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'api_proxy_client.dart';
 
 /// TMDB Token 测试结果
 enum TmdbTestStatus { ok, invalidToken, networkError }
@@ -31,13 +32,20 @@ class TmdbService {
 
   String _token = '';
   String _authType = 'bearer';
+  String _proxy = '';
+  http.Client _client = http.Client();
 
   bool get isConfigured => _token.isNotEmpty;
 
   /// 用已保存的凭证配置服务
-  void configure(String token, String authType) {
+  void configure(String token, String authType, {String proxy = ''}) {
     _token = token;
     _authType = authType;
+    if (proxy != _proxy) {
+      _proxy = proxy;
+      _client.close();
+      _client = buildProxyClient(proxy);
+    }
   }
 
   Map<int, String> _movieGenres = {};
@@ -47,9 +55,11 @@ class TmdbService {
   // ── 认证 ──────────────────────────────────────────────
 
   /// 测试 Token：先试 Bearer（v4 Read Access Token），401 再试 api_key（v3 Key）
-  static Future<TmdbTestResult> testToken(String token) async {
+  static Future<TmdbTestResult> testToken(String token,
+      {String proxy = ''}) async {
+    final client = buildProxyClient(proxy);
     try {
-      final resp = await http
+      final resp = await client
           .get(Uri.parse('$_base/authentication'), headers: {
             'Authorization': 'Bearer $token',
             'accept': 'application/json',
@@ -59,7 +69,7 @@ class TmdbService {
         return const TmdbTestResult(TmdbTestStatus.ok, 'bearer');
       }
       if (resp.statusCode == 401) {
-        final resp2 = await http
+        final resp2 = await client
             .get(Uri.parse('$_base/authentication?api_key=$token'),
                 headers: {'accept': 'application/json'})
             .timeout(const Duration(seconds: 10));
@@ -71,6 +81,8 @@ class TmdbService {
       return const TmdbTestResult(TmdbTestStatus.networkError);
     } catch (_) {
       return const TmdbTestResult(TmdbTestStatus.networkError);
+    } finally {
+      client.close();
     }
   }
 
@@ -86,7 +98,7 @@ class TmdbService {
       [Map<String, String> query = const {}]) async {
     http.Response resp;
     try {
-      resp = await http.get(_uri(path, query), headers: {
+      resp = await _client.get(_uri(path, query), headers: {
         if (_authType == 'bearer') 'Authorization': 'Bearer $_token',
         'accept': 'application/json',
       }).timeout(const Duration(seconds: 15));

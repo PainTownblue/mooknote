@@ -250,6 +250,38 @@ class GalleryDao {
       }
     }
 
+    // 10. 分集/章节/关卡截图（images JSON 数组，JOIN 父作品）
+    const progressSources = [
+      ('movie_episodes', 'movie_id', 'movies', 'movie_episode_image', 'movie'),
+      ('book_chapters', 'book_id', 'books', 'book_chapter_image', 'book'),
+      ('game_levels', 'game_id', 'games', 'game_level_image', 'game'),
+    ];
+    for (final (table, fk, parentTable, category, entityType) in progressSources) {
+      final rows = await db.rawQuery(
+        "SELECT r.images, r.created_at, r.$fk AS parent_id, p.title AS parent_title "
+        "FROM $table r INNER JOIN $parentTable p ON r.$fk = p.id "
+        "WHERE r.is_deleted = ? AND p.is_deleted = ? "
+        "AND r.images IS NOT NULL AND r.images != ?",
+        [0, 0, ''],
+      );
+      for (final r in rows) {
+        final paths = parseStringListGeneric(r['images']);
+        final title = (r['parent_title'] as String?) ?? '';
+        final created = _parseDate(r['created_at'] as String?);
+        for (final imgPath in paths) {
+          if (imgPath.isEmpty) continue;
+          items.add(GalleryItem(
+            path: imgPath,
+            category: category,
+            entityType: entityType,
+            entityId: r['parent_id'] as String,
+            entityTitle: title,
+            createdAt: created,
+          ));
+        }
+      }
+    }
+
     // 关联自定义名称（图库重命名，按逻辑路径匹配）
     final titleMap = await ImageAssetDao().getTitleMap();
     if (titleMap.isNotEmpty) {

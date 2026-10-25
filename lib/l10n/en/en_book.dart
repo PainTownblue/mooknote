@@ -1,5 +1,11 @@
 /// 英文翻译 - 阅读域
 const Map<String, String> enBook = {
+  // 分类
+  '书籍': 'Books',
+  '小说': 'Novel',
+  '漫画': 'Comic',
+  '报刊': 'Newspaper',
+  '论文': 'Paper',
   // 通用
   '取消': 'Cancel',
   '确定': 'OK',

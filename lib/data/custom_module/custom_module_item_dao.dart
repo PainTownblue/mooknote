@@ -27,6 +27,18 @@ class CustomModuleItemDao {
     return maps.map((m) => CustomModuleItem.fromJson(m)).toList();
   });
 
+  /// 全部模块的未删除条目（本地搜索一次性载入用，按更新时间倒序）
+  Future<List<CustomModuleItem>> getAllActiveItems() => _wrap('getAllActiveItems', () async {
+    final db = await _dbHelper.database;
+    final maps = await db.query(
+      'custom_module_items',
+      where: 'is_deleted = ?',
+      whereArgs: [0],
+      orderBy: 'updated_at DESC',
+    );
+    return maps.map((m) => CustomModuleItem.fromJson(m)).toList();
+  });
+
   Future<CustomModuleItem?> getItemById(String id) => _wrap('getItemById', () async {
     final db = await _dbHelper.database;
     final maps = await db.query(

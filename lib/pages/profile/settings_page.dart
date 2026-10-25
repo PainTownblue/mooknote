@@ -10,9 +10,7 @@ import '../../utils/theme/app_theme.dart';
 import '../../utils/toast_util.dart';
 import '../../services/media_scan_channel.dart';
 import '../../services/log_service.dart';
-import '../online_search/enhanced_search_settings_page.dart';
-import '../online_search/tmdb_settings_page.dart';
-import '../online_search/bangumi_settings_page.dart';
+import '../online_search/online_search_api_settings_page.dart';
 import '../settings/legal_page.dart';
 import '../settings/debug_log_page.dart';
 import '../settings/prefs_editor_page.dart';
@@ -143,40 +141,14 @@ class _SettingsPageState extends State<SettingsPage> {
               endIndent: 24,
               color: colors.outlineVariant),
           _buildActionItem(
-            icon: Icons.manage_search,
-            title: '增强搜索'.tr,
-            subtitle: '在线搜索影视和书籍信息'.tr,
+            icon: Icons.travel_explore_outlined,
+            title: '在线搜索 API'.tr,
+            subtitle: '增强搜索、TMDB、Bangumi 数据源配置'.tr,
             onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => const EnhancedSearchSettingsPage())),
-          ),
-          Divider(
-              height: 0.5,
-              indent: 24,
-              endIndent: 24,
-              color: colors.outlineVariant),
-          _buildActionItem(
-            icon: Icons.movie_filter_outlined,
-            title: 'TMDB 搜索'.tr,
-            subtitle: '使用 TMDB API 搜索电影和剧集'.tr,
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const TmdbSettingsPage())),
-          ),
-          Divider(
-              height: 0.5,
-              indent: 24,
-              endIndent: 24,
-              color: colors.outlineVariant),
-          _buildActionItem(
-            icon: Icons.explore_outlined,
-            title: 'Bangumi 搜索'.tr,
-            subtitle: '使用 Bangumi API 搜索动画、书籍和游戏'.tr,
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const BangumiSettingsPage())),
+                    builder: (_) =>
+                        const OnlineSearchApiSettingsPage())),
           ),
           Divider(
               height: 0.5,

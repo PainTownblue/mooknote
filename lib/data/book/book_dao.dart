@@ -29,13 +29,17 @@ class BookDao {
   });
 
   // 分页查询书籍记录
-  Future<List<Book>> getBooksPaged({String? status, int limit = 20, int offset = 0, int sortMode = 0}) => _wrap('getBooksPaged', () async {
+  Future<List<Book>> getBooksPaged({String? status, String? category, int limit = 20, int offset = 0, int sortMode = 0}) => _wrap('getBooksPaged', () async {
     final db = await _dbHelper.database;
     String where = 'is_deleted = 0';
     List<dynamic> whereArgs = [];
     if (status != null && status.isNotEmpty) {
       where += ' AND status = ?';
       whereArgs.add(status);
+    }
+    if (category != null && category.isNotEmpty) {
+      where += ' AND category = ?';
+      whereArgs.add(category);
     }
     final maps = await db.query('books', where: where, whereArgs: whereArgs,
         orderBy: _buildBookOrderBy(sortMode), limit: limit, offset: offset);
@@ -191,6 +195,7 @@ class BookDao {
     return await db.transaction((txn) async {
       await txn.delete('book_reviews', where: 'book_id = ?', whereArgs: [id]);
       await txn.delete('book_excerpts', where: 'book_id = ?', whereArgs: [id]);
+      await txn.delete('book_chapters', where: 'book_id = ?', whereArgs: [id]);
       await txn.delete('book_people', where: 'book_id = ?', whereArgs: [id]);
       await txn.delete('book_characters', where: 'book_id = ?', whereArgs: [id]);
       await PlaylistDao.removeMediaFromPlaylists(txn, id, 'book');

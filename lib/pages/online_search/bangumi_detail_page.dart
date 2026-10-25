@@ -50,7 +50,8 @@ class _BangumiDetailPageState extends State<BangumiDetailPage> {
   @override
   void initState() {
     super.initState();
-    _bgm.configure(UserPrefs().bangumiAccessToken);
+    _bgm.configure(UserPrefs().bangumiAccessToken,
+        proxy: UserPrefs().bangumiProxy);
     _load();
   }
 

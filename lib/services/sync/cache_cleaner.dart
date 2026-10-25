@@ -263,6 +263,21 @@ class CacheCleaner {
       }
     }
 
+    // 分集/章节/关卡截图
+    for (final table in const ['movie_episodes', 'book_chapters', 'game_levels']) {
+      final rows = await db.query(table, columns: ['images'], where: 'is_deleted = 0');
+      for (final r in rows) {
+        final imagesJson = r['images'] as String?;
+        if (imagesJson != null && imagesJson.isNotEmpty) {
+          try {
+            for (final ip in jsonDecode(imagesJson) as List<dynamic>) {
+              if (ip is String && ip.isNotEmpty) paths.add(ip);
+            }
+          } catch (_) {}
+        }
+      }
+    }
+
     // 影视海报墙图片
     final moviePosters = await db.query('movie_posters', columns: ['poster_path']);
     for (final p in moviePosters) {

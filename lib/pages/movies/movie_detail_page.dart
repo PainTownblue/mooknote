@@ -16,6 +16,7 @@ import 'movie_reviews_page.dart';
 import 'movie_posters_page.dart';
 import 'movie_share_page.dart';
 import '../character/character_list_page.dart';
+import '../progress/progress_pages.dart';
 import '../../widgets/app_overlay.dart';
 import '../../l10n/app_strings.dart';
 
@@ -754,6 +755,13 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
         Text('更多'.tr, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: colors.onSurface)),
       ]),
       const SizedBox(height: 12),
+      ProgressEntryCard(
+        parentId: movie.id,
+        parentTitle: movie.title,
+        config: ProgressConfig.movie,
+        icon: Icons.video_library_outlined,
+      ),
+      const SizedBox(height: 10),
       _buildExtraSectionItem(
         icon: Icons.rate_review_outlined,
         title: '影评',
@@ -1503,6 +1511,13 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
             ],
           ),
           const SizedBox(height: 16),
+          ProgressEntryCard(
+            parentId: movie.id,
+            parentTitle: movie.title,
+            config: ProgressConfig.movie,
+            icon: Icons.video_library_outlined,
+          ),
+          const SizedBox(height: 12),
           _buildExtraSectionItem(
             icon: Icons.rate_review_outlined,
             title: '影评',
@@ -1540,6 +1555,14 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         children: [
+          ProgressEntryCard(
+            parentId: movie.id,
+            parentTitle: movie.title,
+            config: ProgressConfig.movie,
+            icon: Icons.video_library_outlined,
+            frosted: true,
+          ),
+          const SizedBox(height: 12),
           _buildFrostedExtraItem(
             icon: Icons.rate_review_outlined,
             title: '影评',

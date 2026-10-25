@@ -14,6 +14,9 @@ import '../data/game/game_dao.dart';
 import '../data/game/game_review_dao.dart';
 import '../data/game/game_screenshot_dao.dart';
 import '../data/game/game_completion_dao.dart';
+import '../data/movie/movie_episode_dao.dart';
+import '../data/book/book_chapter_dao.dart';
+import '../data/game/game_level_dao.dart';
 import '../data/playlist/playlist_dao.dart';
 import '../data/tag/tag_dao.dart';
 import '../data/person/person_dao.dart';
@@ -47,6 +50,9 @@ class AppProvider extends ChangeNotifier {
   final GameReviewDao _gameReviewDao = GameReviewDao();
   final GameScreenshotDao _gameScreenshotDao = GameScreenshotDao();
   final GameCompletionDao _gameCompletionDao = GameCompletionDao();
+  final MovieEpisodeDao _movieEpisodeDao = MovieEpisodeDao();
+  final BookChapterDao _bookChapterDao = BookChapterDao();
+  final GameLevelDao _gameLevelDao = GameLevelDao();
   final PlaylistDao _playlistDao = PlaylistDao();
   final TagDao _tagDao = TagDao();
   final PersonDao _personDao = PersonDao();
@@ -140,8 +146,14 @@ class AppProvider extends ChangeNotifier {
   // 影视分类索引
   int _movieCategoryIndex = 0;
 
+  // 书籍显示模式 (0: 阅读状态, 1: 分类状态)
+  int _bookDisplayMode = 0;
+
   // 阅读选中的状态 (0: 读完，1: 在读，2: 准备读)
   int _bookStatusIndex = 0;
+
+  // 书籍分类索引
+  int _bookCategoryIndex = 0;
 
   // 书籍状态栏样式 (0: 胶囊滑块, 1: 下划线, 2: 芯片组, 3: 下拉)
   int _bookStatusBarStyle = 0;
@@ -271,6 +283,7 @@ class AppProvider extends ChangeNotifier {
     _bookGridCount = userPrefs.bookGridCount;
     _gameGridCount = userPrefs.gameGridCount;
     _bookStatusBarStyle = userPrefs.bookStatusBarStyle;
+    _bookDisplayMode = userPrefs.bookDisplayMode;
     _bookshelfMode = userPrefs.bookshelfMode;
     _gameLayoutStyle = userPrefs.gameLayoutStyle;
     _gameWallMode = userPrefs.gameWallMode;
@@ -392,8 +405,8 @@ class AppProvider extends ChangeNotifier {
     return _movieDao.getMoviesPaged(status: status, category: category, limit: _pageSize, offset: offset, sortMode: sortMode);
   }
 
-  Future<List<Book>> loadBooksPaged({String? status, required int offset, int sortMode = 0}) async {
-    return _bookDao.getBooksPaged(status: status, limit: _pageSize, offset: offset, sortMode: sortMode);
+  Future<List<Book>> loadBooksPaged({String? status, String? category, required int offset, int sortMode = 0}) async {
+    return _bookDao.getBooksPaged(status: status, category: category, limit: _pageSize, offset: offset, sortMode: sortMode);
   }
 
   Future<List<Note>> loadNotesPaged({required int offset, int sortMode = 0}) async {
@@ -431,6 +444,8 @@ class AppProvider extends ChangeNotifier {
   int get bookGridCount => _bookGridCount;
   int get gameGridCount => _gameGridCount;
   int get movieCategoryIndex => _movieCategoryIndex;
+  int get bookDisplayMode => _bookDisplayMode;
+  int get bookCategoryIndex => _bookCategoryIndex;
   int get bookStatusIndex => _bookStatusIndex;
   int get bookStatusBarStyle => _bookStatusBarStyle;
   bool get bookshelfMode => _bookshelfMode;
@@ -555,7 +570,14 @@ class AppProvider extends ChangeNotifier {
   int get customModuleItemsVersion => _customModuleItemsVersion;
   void bumpCustomModuleItemsVersion() {
     _customModuleItemsVersion++;
+    _allCustomItemsCache = null;
     notifyListeners();
+  }
+
+  // 本地搜索用：全部模块未删除条目的一次性内存缓存，条目变动时随版本号失效
+  List<CustomModuleItem>? _allCustomItemsCache;
+  Future<List<CustomModuleItem>> ensureCustomItemsLoaded() async {
+    return _allCustomItemsCache ??= await _customModuleItemDao.getAllActiveItems();
   }
 
   // ========== 自定义模块条目回收站 ==========
@@ -919,6 +941,17 @@ class AppProvider extends ChangeNotifier {
 
   void setMovieCategoryIndex(int index) {
     _movieCategoryIndex = index;
+    notifyListeners();
+  }
+
+  void setBookDisplayMode(int mode) {
+    _bookDisplayMode = mode;
+    UserPrefs().setBookDisplayMode(mode);
+    notifyListeners();
+  }
+
+  void setBookCategoryIndex(int index) {
+    _bookCategoryIndex = index;
     notifyListeners();
   }
 
@@ -1412,6 +1445,135 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ========== 影视分集相关方法 ==========
+
+  Future<List<MovieEpisode>> getMovieEpisodes(String movieId) async {
+    return await _movieEpisodeDao.getEpisodesByMovieId(movieId);
+  }
+
+  Future<List<MovieEpisode>> getAllMovieEpisodes() => _movieEpisodeDao.getAllEpisodes();
+
+  Future<void> addMovieEpisode(MovieEpisode e) async {
+    await _movieEpisodeDao.insertEpisode(e);
+    await _touchParentUpdatedAt('movies', e.movieId);
+    notifyListeners();
+  }
+
+  /// 批量新增分集（批量生成用）：单事务写入，只触碰父行一次、通知一次
+  Future<void> addMovieEpisodesBatch(List<MovieEpisode> list) async {
+    if (list.isEmpty) return;
+    final db = await DatabaseHelper.instance.database;
+    await db.transaction((txn) async {
+      for (final e in list) {
+        await txn.insert('movie_episodes', e.toJson());
+      }
+    });
+    await _touchParentUpdatedAt('movies', list.first.movieId);
+    notifyListeners();
+  }
+
+  Future<void> updateMovieEpisode(MovieEpisode e) async {
+    await _movieEpisodeDao.updateEpisode(e);
+    await _touchParentUpdatedAt('movies', e.movieId);
+    notifyListeners();
+  }
+
+  Future<void> removeMovieEpisode(String id) async {
+    final e = await _movieEpisodeDao.getEpisodeById(id);
+    await _movieEpisodeDao.deleteEpisode(id);
+    if (e != null) {
+      await ImagePathHelper.instance.deleteMovieEpisodeImages(e.movieId, e.id);
+      await _touchParentUpdatedAt('movies', e.movieId);
+    }
+    notifyListeners();
+  }
+
+  // ========== 书籍章节相关方法 ==========
+
+  Future<List<BookChapter>> getBookChapters(String bookId) async {
+    return await _bookChapterDao.getChaptersByBookId(bookId);
+  }
+
+  Future<List<BookChapter>> getAllBookChapters() => _bookChapterDao.getAllChapters();
+
+  Future<void> addBookChapter(BookChapter c) async {
+    await _bookChapterDao.insertChapter(c);
+    await _touchParentUpdatedAt('books', c.bookId);
+    notifyListeners();
+  }
+
+  /// 批量新增章节（批量生成用）：单事务写入，只触碰父行一次、通知一次
+  Future<void> addBookChaptersBatch(List<BookChapter> list) async {
+    if (list.isEmpty) return;
+    final db = await DatabaseHelper.instance.database;
+    await db.transaction((txn) async {
+      for (final c in list) {
+        await txn.insert('book_chapters', c.toJson());
+      }
+    });
+    await _touchParentUpdatedAt('books', list.first.bookId);
+    notifyListeners();
+  }
+
+  Future<void> updateBookChapter(BookChapter c) async {
+    await _bookChapterDao.updateChapter(c);
+    await _touchParentUpdatedAt('books', c.bookId);
+    notifyListeners();
+  }
+
+  Future<void> removeBookChapter(String id) async {
+    final c = await _bookChapterDao.getChapterById(id);
+    await _bookChapterDao.deleteChapter(id);
+    if (c != null) {
+      await ImagePathHelper.instance.deleteBookChapterImages(c.bookId, c.id);
+      await _touchParentUpdatedAt('books', c.bookId);
+    }
+    notifyListeners();
+  }
+
+  // ========== 游戏关卡相关方法 ==========
+
+  Future<List<GameLevel>> getGameLevels(String gameId) async {
+    return await _gameLevelDao.getLevelsByGameId(gameId);
+  }
+
+  Future<List<GameLevel>> getAllGameLevels() => _gameLevelDao.getAllLevels();
+
+  Future<void> addGameLevel(GameLevel l) async {
+    await _gameLevelDao.insertLevel(l);
+    await _touchParentUpdatedAt('games', l.gameId);
+    notifyListeners();
+  }
+
+  /// 批量新增关卡（批量生成用）：单事务写入，只触碰父行一次、通知一次
+  Future<void> addGameLevelsBatch(List<GameLevel> list) async {
+    if (list.isEmpty) return;
+    final db = await DatabaseHelper.instance.database;
+    await db.transaction((txn) async {
+      for (final l in list) {
+        await txn.insert('game_levels', l.toJson());
+      }
+    });
+    await _touchParentUpdatedAt('games', list.first.gameId);
+    notifyListeners();
+  }
+
+  Future<void> updateGameLevel(GameLevel l) async {
+    await _gameLevelDao.updateLevel(l);
+    await _touchParentUpdatedAt('games', l.gameId);
+    notifyListeners();
+  }
+
+  Future<void> removeGameLevel(String id) async {
+    final l = await _gameLevelDao.getLevelById(id);
+    await _gameLevelDao.deleteLevel(id);
+    if (l != null) {
+      await ImagePathHelper.instance.deleteGameLevelImages(l.gameId, l.id);
+      await _touchParentUpdatedAt('games', l.gameId);
+    }
+    notifyListeners();
+  }
+
   // ========== 书评相关方法 ==========
 
   /// 获取书籍的所有书评
@@ -1511,6 +1673,7 @@ class AppProvider extends ChangeNotifier {
   Future<void> permanentDeleteMovie(String id) async {
     await SyncTombstones.record('movies', id);
     await ImagePathHelper.instance.deleteMovieImages(id);
+    // 分集等全部子表在 DAO 事务内与父行同删，避免中途失败产生孤儿
     await _movieDao.permanentDeleteMovie(id);
   }
 
@@ -1529,6 +1692,7 @@ class AppProvider extends ChangeNotifier {
   Future<void> permanentDeleteBook(String id) async {
     await SyncTombstones.record('books', id);
     await ImagePathHelper.instance.deleteBookImages(id);
+    // 章节等全部子表在 DAO 事务内与父行同删，避免中途失败产生孤儿
     await _bookDao.permanentDeleteBook(id);
   }
 
@@ -1565,6 +1729,7 @@ class AppProvider extends ChangeNotifier {
   Future<void> permanentDeleteGame(String id) async {
     await SyncTombstones.record('games', id);
     await ImagePathHelper.instance.deleteGameImages(id);
+    // 关卡/通关记录等全部子表在 DAO 事务内与父行同删，避免中途失败产生孤儿
     await _gameDao.permanentDeleteGame(id);
   }
   
@@ -1667,11 +1832,19 @@ class AppProvider extends ChangeNotifier {
       for (final id in movieIds) {
         await txn.delete('movie_reviews', where: 'movie_id = ?', whereArgs: [id]);
         await txn.delete('movie_posters', where: 'movie_id = ?', whereArgs: [id]);
+        await txn.delete('movie_episodes', where: 'movie_id = ?', whereArgs: [id]);
+        await txn.delete('movie_people', where: 'movie_id = ?', whereArgs: [id]);
+        await txn.delete('movie_characters', where: 'movie_id = ?', whereArgs: [id]);
+        await PlaylistDao.removeMediaFromPlaylists(txn, id, 'movie');
         await txn.delete('movies', where: 'id = ?', whereArgs: [id]);
       }
       for (final id in bookIds) {
         await txn.delete('book_reviews', where: 'book_id = ?', whereArgs: [id]);
         await txn.delete('book_excerpts', where: 'book_id = ?', whereArgs: [id]);
+        await txn.delete('book_chapters', where: 'book_id = ?', whereArgs: [id]);
+        await txn.delete('book_people', where: 'book_id = ?', whereArgs: [id]);
+        await txn.delete('book_characters', where: 'book_id = ?', whereArgs: [id]);
+        await PlaylistDao.removeMediaFromPlaylists(txn, id, 'book');
         await txn.delete('books', where: 'id = ?', whereArgs: [id]);
       }
       for (final id in noteIds) {
@@ -1681,6 +1854,10 @@ class AppProvider extends ChangeNotifier {
         await txn.delete('game_reviews', where: 'game_id = ?', whereArgs: [id]);
         await txn.delete('game_screenshots', where: 'game_id = ?', whereArgs: [id]);
         await txn.delete('game_completions', where: 'game_id = ?', whereArgs: [id]);
+        await txn.delete('game_levels', where: 'game_id = ?', whereArgs: [id]);
+        await txn.delete('game_people', where: 'game_id = ?', whereArgs: [id]);
+        await txn.delete('game_characters', where: 'game_id = ?', whereArgs: [id]);
+        await PlaylistDao.removeMediaFromPlaylists(txn, id, 'game');
         await txn.delete('games', where: 'id = ?', whereArgs: [id]);
       }
       for (final review in deletedMovieReviews) {

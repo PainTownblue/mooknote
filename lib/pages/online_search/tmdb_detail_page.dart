@@ -38,7 +38,8 @@ class _TmdbDetailPageState extends State<TmdbDetailPage> {
   @override
   void initState() {
     super.initState();
-    _tmdb.configure(UserPrefs().tmdbApiToken, UserPrefs().tmdbAuthType);
+    _tmdb.configure(UserPrefs().tmdbApiToken, UserPrefs().tmdbAuthType,
+        proxy: UserPrefs().tmdbProxy);
     _load();
   }
 

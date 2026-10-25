@@ -224,6 +224,7 @@ class Book {
   final String? summary; // 书籍简介
   final double? rating; // 评分 1-10
   final String status; // read/reading/want_to_read
+  final String category; // book/novel/comic/newspaper/paper
   final String? isbn; // ISBN编号
   final DateTime? publishDate; // 出版时间
   final DateTime? startDate; // 开始阅读日期
@@ -246,6 +247,7 @@ class Book {
     this.summary,
     this.rating,
     required this.status,
+    this.category = 'book',
     this.isbn,
     this.publishDate,
     this.startDate,
@@ -270,6 +272,7 @@ class Book {
       summary: json['summary'],
       rating: _safeParseDouble(json['rating']),
       status: json['status'] ?? 'want_to_read',
+      category: json['category'] ?? 'book',
       isbn: json['isbn'],
       publishDate: _safeParseDate(json['publish_date']),
       startDate: _safeParseDate(json['start_date']),
@@ -295,6 +298,7 @@ class Book {
       'summary': summary,
       'rating': rating,
       'status': status,
+      'category': category,
       'isbn': isbn,
       'publish_date': publishDate?.toUtc().toIso8601String(),
       'start_date': startDate?.toUtc().toIso8601String(),
@@ -326,6 +330,7 @@ class Book {
     Object? summary = _copyWithNull,
     Object? rating = _copyWithNull,
     String? status,
+    String? category,
     Object? isbn = _copyWithNull,
     DateTime? publishDate,
     DateTime? startDate,
@@ -348,6 +353,7 @@ class Book {
       summary: summary is _CopyWithNullSentinel ? this.summary : (summary as String?),
       rating: rating is _CopyWithNullSentinel ? this.rating : (rating as double?),
       status: status ?? this.status,
+      category: category ?? this.category,
       isbn: isbn is _CopyWithNullSentinel ? this.isbn : (isbn as String?),
       publishDate: publishDate ?? this.publishDate,
       startDate: startDate ?? this.startDate,
@@ -1046,6 +1052,291 @@ class GameCompletion {
       gameId: gameId ?? this.gameId,
       completionDate: completionDate ?? this.completionDate,
       note: note ?? this.note,
+      isDeleted: isDeleted ?? this.isDeleted,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
+
+/// 影视分集记录（一部影片多条，按集号组织）
+class MovieEpisode {
+  final String id;
+  final String movieId;
+  final int episodeNo; // 集号
+  final String title; // 本集标题（可空）
+  final bool watched; // 是否观看
+  final DateTime? watchDate; // 观看日期
+  final double? rating; // 本集评分 1-10
+  final String review; // 本集评价（可空）
+  final List<String> images; // 截图路径
+  final bool isDeleted;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  MovieEpisode({
+    required this.id,
+    required this.movieId,
+    required this.episodeNo,
+    this.title = '',
+    this.watched = false,
+    this.watchDate,
+    this.rating,
+    this.review = '',
+    this.images = const [],
+    this.isDeleted = false,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory MovieEpisode.fromJson(Map<String, dynamic> json) {
+    return MovieEpisode(
+      id: json['id']?.toString() ?? '',
+      movieId: json['movie_id']?.toString() ?? '',
+      episodeNo: _safeParseInt(json['episode_no']),
+      title: json['title']?.toString() ?? '',
+      watched: json['watched'] == 1 || json['watched'] == true,
+      watchDate: _safeParseDate(json['watch_date']?.toString()),
+      rating: _safeParseDouble(json['rating']),
+      review: json['review']?.toString() ?? '',
+      images: Movie.parseStringList(json['images']),
+      isDeleted: json['is_deleted'] == 1 || json['is_deleted'] == true,
+      createdAt: _safeParseDate(json['created_at'], fallback: DateTime.now())!,
+      updatedAt: _safeParseDate(json['updated_at'], fallback: DateTime.now())!,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'movie_id': movieId,
+      'episode_no': episodeNo,
+      'title': title,
+      'watched': watched ? 1 : 0,
+      'watch_date': watchDate?.toUtc().toIso8601String(),
+      'rating': rating,
+      'review': review,
+      'images': jsonEncode(images),
+      'is_deleted': isDeleted ? 1 : 0,
+      'created_at': createdAt.toUtc().toIso8601String(),
+      'updated_at': updatedAt.toUtc().toIso8601String(),
+    };
+  }
+
+  MovieEpisode copyWith({
+    String? id,
+    String? movieId,
+    int? episodeNo,
+    String? title,
+    bool? watched,
+    Object? watchDate = _copyWithNull,
+    Object? rating = _copyWithNull,
+    String? review,
+    List<String>? images,
+    bool? isDeleted,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return MovieEpisode(
+      id: id ?? this.id,
+      movieId: movieId ?? this.movieId,
+      episodeNo: episodeNo ?? this.episodeNo,
+      title: title ?? this.title,
+      watched: watched ?? this.watched,
+      watchDate: watchDate is _CopyWithNullSentinel ? this.watchDate : (watchDate as DateTime?),
+      rating: rating is _CopyWithNullSentinel ? this.rating : (rating as double?),
+      review: review ?? this.review,
+      images: images ?? this.images,
+      isDeleted: isDeleted ?? this.isDeleted,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
+
+/// 书籍分章记录（一本书多条，按章号组织）
+class BookChapter {
+  final String id;
+  final String bookId;
+  final int chapterNo; // 章节号
+  final String title; // 章节名（可空）
+  final bool read; // 是否已读
+  final DateTime? readDate; // 阅读日期
+  final double? rating; // 本章评分 1-10
+  final String review; // 本章评价（可空）
+  final List<String> images; // 配图路径
+  final bool isDeleted;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  BookChapter({
+    required this.id,
+    required this.bookId,
+    required this.chapterNo,
+    this.title = '',
+    this.read = false,
+    this.readDate,
+    this.rating,
+    this.review = '',
+    this.images = const [],
+    this.isDeleted = false,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory BookChapter.fromJson(Map<String, dynamic> json) {
+    return BookChapter(
+      id: json['id']?.toString() ?? '',
+      bookId: json['book_id']?.toString() ?? '',
+      chapterNo: _safeParseInt(json['chapter_no']),
+      title: json['title']?.toString() ?? '',
+      read: json['read'] == 1 || json['read'] == true,
+      readDate: _safeParseDate(json['read_date']?.toString()),
+      rating: _safeParseDouble(json['rating']),
+      review: json['review']?.toString() ?? '',
+      images: Movie.parseStringList(json['images']),
+      isDeleted: json['is_deleted'] == 1 || json['is_deleted'] == true,
+      createdAt: _safeParseDate(json['created_at'], fallback: DateTime.now())!,
+      updatedAt: _safeParseDate(json['updated_at'], fallback: DateTime.now())!,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'book_id': bookId,
+      'chapter_no': chapterNo,
+      'title': title,
+      'read': read ? 1 : 0,
+      'read_date': readDate?.toUtc().toIso8601String(),
+      'rating': rating,
+      'review': review,
+      'images': jsonEncode(images),
+      'is_deleted': isDeleted ? 1 : 0,
+      'created_at': createdAt.toUtc().toIso8601String(),
+      'updated_at': updatedAt.toUtc().toIso8601String(),
+    };
+  }
+
+  BookChapter copyWith({
+    String? id,
+    String? bookId,
+    int? chapterNo,
+    String? title,
+    bool? read,
+    Object? readDate = _copyWithNull,
+    Object? rating = _copyWithNull,
+    String? review,
+    List<String>? images,
+    bool? isDeleted,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return BookChapter(
+      id: id ?? this.id,
+      bookId: bookId ?? this.bookId,
+      chapterNo: chapterNo ?? this.chapterNo,
+      title: title ?? this.title,
+      read: read ?? this.read,
+      readDate: readDate is _CopyWithNullSentinel ? this.readDate : (readDate as DateTime?),
+      rating: rating is _CopyWithNullSentinel ? this.rating : (rating as double?),
+      review: review ?? this.review,
+      images: images ?? this.images,
+      isDeleted: isDeleted ?? this.isDeleted,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
+
+/// 游戏关卡记录（一个游戏多条，按关卡号组织）
+class GameLevel {
+  final String id;
+  final String gameId;
+  final int levelNo; // 关卡号
+  final String title; // 关卡名（可空）
+  final bool cleared; // 是否通关
+  final DateTime? clearDate; // 通关日期
+  final double? rating; // 本关评分 1-10
+  final String review; // 本关评价（可空）
+  final List<String> images; // 截图路径
+  final bool isDeleted;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  GameLevel({
+    required this.id,
+    required this.gameId,
+    required this.levelNo,
+    this.title = '',
+    this.cleared = false,
+    this.clearDate,
+    this.rating,
+    this.review = '',
+    this.images = const [],
+    this.isDeleted = false,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory GameLevel.fromJson(Map<String, dynamic> json) {
+    return GameLevel(
+      id: json['id']?.toString() ?? '',
+      gameId: json['game_id']?.toString() ?? '',
+      levelNo: _safeParseInt(json['level_no']),
+      title: json['title']?.toString() ?? '',
+      cleared: json['cleared'] == 1 || json['cleared'] == true,
+      clearDate: _safeParseDate(json['clear_date']?.toString()),
+      rating: _safeParseDouble(json['rating']),
+      review: json['review']?.toString() ?? '',
+      images: Movie.parseStringList(json['images']),
+      isDeleted: json['is_deleted'] == 1 || json['is_deleted'] == true,
+      createdAt: _safeParseDate(json['created_at'], fallback: DateTime.now())!,
+      updatedAt: _safeParseDate(json['updated_at'], fallback: DateTime.now())!,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'game_id': gameId,
+      'level_no': levelNo,
+      'title': title,
+      'cleared': cleared ? 1 : 0,
+      'clear_date': clearDate?.toUtc().toIso8601String(),
+      'rating': rating,
+      'review': review,
+      'images': jsonEncode(images),
+      'is_deleted': isDeleted ? 1 : 0,
+      'created_at': createdAt.toUtc().toIso8601String(),
+      'updated_at': updatedAt.toUtc().toIso8601String(),
+    };
+  }
+
+  GameLevel copyWith({
+    String? id,
+    String? gameId,
+    int? levelNo,
+    String? title,
+    bool? cleared,
+    Object? clearDate = _copyWithNull,
+    Object? rating = _copyWithNull,
+    String? review,
+    List<String>? images,
+    bool? isDeleted,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return GameLevel(
+      id: id ?? this.id,
+      gameId: gameId ?? this.gameId,
+      levelNo: levelNo ?? this.levelNo,
+      title: title ?? this.title,
+      cleared: cleared ?? this.cleared,
+      clearDate: clearDate is _CopyWithNullSentinel ? this.clearDate : (clearDate as DateTime?),
+      rating: rating is _CopyWithNullSentinel ? this.rating : (rating as double?),
+      review: review ?? this.review,
+      images: images ?? this.images,
       isDeleted: isDeleted ?? this.isDeleted,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

@@ -34,7 +34,8 @@ class _TmdbSearchPageBodyState extends State<TmdbSearchPageBody> {
   @override
   void initState() {
     super.initState();
-    _tmdb.configure(_userPrefs.tmdbApiToken, _userPrefs.tmdbAuthType);
+    _tmdb.configure(_userPrefs.tmdbApiToken, _userPrefs.tmdbAuthType,
+        proxy: _userPrefs.tmdbProxy);
     _history = _userPrefs.searchHistory;
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=

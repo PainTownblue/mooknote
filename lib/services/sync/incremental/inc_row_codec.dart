@@ -78,20 +78,49 @@ class IncRowCodec {
     String groupTable,
     List<Map<String, dynamic>> rows,
   ) {
+    final gspec = IncEntities.groupSpecOf(groupTable);
     final imgCol = groupTable == 'movie_posters'
         ? 'poster_path'
         : groupTable == 'game_screenshots'
             ? 'screenshot_path'
             : null;
-    if (imgCol == null) return rows;
+    final jsonCol = gspec?.imageJsonColumn;
+    if (imgCol == null && jsonCol == null) return rows;
     return rows.map((r) {
       final out = Map<String, dynamic>.from(r);
-      final v = out[imgCol];
-      if (v is String && v.isNotEmpty) {
-        out[imgCol] = localPathOf(toLogical(v));
+      if (imgCol != null) {
+        final v = out[imgCol];
+        if (v is String && v.isNotEmpty) {
+          out[imgCol] = localPathOf(toLogical(v));
+        }
+      }
+      if (jsonCol != null) {
+        final v = out[jsonCol];
+        if (v is String && v.isNotEmpty) {
+          try {
+            final list = jsonDecode(v) as List;
+            out[jsonCol] = jsonEncode(list
+                .whereType<String>()
+                .map((e) => localPathOf(toLogical(e)))
+                .toList());
+          } catch (_) {}
+        }
       }
       return out;
     }).toList();
+  }
+
+  /// 解析 JSON 列表图片列，返回其中的逻辑路径（推送图片用）
+  List<String> logicalFromJsonList(String? json) {
+    if (json == null || json.isEmpty) return const [];
+    try {
+      return [
+        for (final e in jsonDecode(json) as List)
+          if (e is String && e.isNotEmpty) toLogical(e),
+      ];
+    } catch (_) {
+      return const [];
+    }
   }
 
   /// 收集行当前引用的逻辑路径

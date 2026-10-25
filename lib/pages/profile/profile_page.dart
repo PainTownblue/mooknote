@@ -1444,12 +1444,14 @@ class _ProfilePageState extends State<ProfilePage> with RouteAware {
           file = await ExcelExporter.exportMovies(
             provider.movies.where((m) => !m.isDeleted).toList(),
             reviews: withReviews ? await provider.getAllMovieReviews() : null,
+            episodes: await provider.getAllMovieEpisodes(),
           );
           break;
         case '阅读':
           file = await ExcelExporter.exportBooks(
             provider.books.where((b) => !b.isDeleted).toList(),
             reviews: withReviews ? await provider.getAllBookReviews() : null,
+            chapters: await provider.getAllBookChapters(),
           );
           break;
         case '游戏':
@@ -1457,6 +1459,7 @@ class _ProfilePageState extends State<ProfilePage> with RouteAware {
             provider.games.where((g) => !g.isDeleted).toList(),
             reviews: withReviews ? await provider.getAllGameReviews() : null,
             completions: await provider.getGameCompletionsMap(),
+            levels: await provider.getAllGameLevels(),
           );
           break;
         default:

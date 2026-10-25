@@ -106,6 +106,10 @@ class BackupService {
     final gameReviews = await db.query('game_reviews');
     final gameScreenshots = await db.query('game_screenshots');
     final gameCompletions = await db.query('game_completions');
+    // 排除旧版软删残留行（新版已改为硬删）
+    final movieEpisodes = await db.query('movie_episodes', where: 'is_deleted = 0');
+    final bookChapters = await db.query('book_chapters', where: 'is_deleted = 0');
+    final gameLevels = await db.query('game_levels', where: 'is_deleted = 0');
     final people = await db.query('people');
     final moviePeople = await db.query('movie_people');
     final bookPeople = await db.query('book_people');
@@ -162,6 +166,19 @@ class BackupService {
     for (final g in games) {      final p = g['cover_path'] as String?;
       if (p != null && p.isNotEmpty) imagePaths.add(p);
     }
+    // 分集/章节/关卡截图（images JSON 列表）
+    for (final row in [...movieEpisodes, ...bookChapters, ...gameLevels]) {
+      final imagesJson = row['images'] as String?;
+      if (imagesJson != null && imagesJson.isNotEmpty) {
+        try {
+          for (final ip in jsonDecode(imagesJson) as List<dynamic>) {
+            if (ip is String && ip.isNotEmpty) imagePaths.add(ip);
+          }
+        } catch (e) {
+          debugPrint('[BackupService] 进度图片解析失败 (id=${row['id']}): $e');
+        }
+      }
+    }
     for (final s in gameScreenshots) {
       final p = s['screenshot_path'] as String?;
       if (p != null && p.isNotEmpty) imagePaths.add(p);
@@ -211,6 +228,9 @@ class BackupService {
         'game_reviews': gameReviews,
         'game_screenshots': gameScreenshots,
         'game_completions': gameCompletions,
+        'movie_episodes': movieEpisodes,
+        'book_chapters': bookChapters,
+        'game_levels': gameLevels,
         'people': people,
         'movie_people': moviePeople,
         'book_people': bookPeople,
@@ -670,6 +690,9 @@ class BackupService {
     final gameReviewsCols = await _getTableColumns(db, 'game_reviews');
     final gameScreenshotsCols = await _getTableColumns(db, 'game_screenshots');
     final gameCompletionsCols = await _getTableColumns(db, 'game_completions');
+    final movieEpisodesCols = await _getTableColumns(db, 'movie_episodes');
+    final bookChaptersCols = await _getTableColumns(db, 'book_chapters');
+    final gameLevelsCols = await _getTableColumns(db, 'game_levels');
     final peopleCols = await _getTableColumns(db, 'people');
     final moviePeopleCols = await _getTableColumns(db, 'movie_people');
     final bookPeopleCols = await _getTableColumns(db, 'book_people');
@@ -692,6 +715,9 @@ class BackupService {
       await txn.delete('game_reviews');
       await txn.delete('game_screenshots');
       await txn.delete('game_completions');
+      await txn.delete('movie_episodes');
+      await txn.delete('book_chapters');
+      await txn.delete('game_levels');
       await txn.delete('movie_people');
       await txn.delete('book_people');
       await txn.delete('game_people');
@@ -764,6 +790,21 @@ class BackupService {
       if (data.containsKey('game_completions')) {
         for (final c in data['game_completions'] as List) {
           await txn.insert('game_completions', _convertToDbMapSafe(c, gameCompletionsCols));
+        }
+      }
+      if (data.containsKey('movie_episodes')) {
+        for (final e in data['movie_episodes'] as List) {
+          await txn.insert('movie_episodes', _updateNoteImagesPath(_convertToDbMapSafe(e, movieEpisodesCols), imagePathMap));
+        }
+      }
+      if (data.containsKey('book_chapters')) {
+        for (final c in data['book_chapters'] as List) {
+          await txn.insert('book_chapters', _updateNoteImagesPath(_convertToDbMapSafe(c, bookChaptersCols), imagePathMap));
+        }
+      }
+      if (data.containsKey('game_levels')) {
+        for (final l in data['game_levels'] as List) {
+          await txn.insert('game_levels', _updateNoteImagesPath(_convertToDbMapSafe(l, gameLevelsCols), imagePathMap));
         }
       }
       if (data.containsKey('tags')) {
@@ -946,6 +987,9 @@ class BackupService {
     if (data.containsKey('game_reviews')) stats['游戏评价'] = (data['game_reviews'] as List).length;
     if (data.containsKey('game_screenshots')) stats['游戏截图'] = (data['game_screenshots'] as List).length;
     if (data.containsKey('game_completions')) stats['通关记录'] = (data['game_completions'] as List).length;
+    if (data.containsKey('movie_episodes')) stats['分集'] = (data['movie_episodes'] as List).length;
+    if (data.containsKey('book_chapters')) stats['章节'] = (data['book_chapters'] as List).length;
+    if (data.containsKey('game_levels')) stats['关卡'] = (data['game_levels'] as List).length;
     if (data.containsKey('people')) stats['人物'] = (data['people'] as List).length;
     if (data.containsKey('playlists')) stats['片单'] = (data['playlists'] as List).length;
     int charCount = 0;

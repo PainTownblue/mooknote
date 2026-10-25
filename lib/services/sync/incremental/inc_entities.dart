@@ -37,11 +37,15 @@ class IncGroupSpec {
   /// 用于检测「父行未改但子组新增」的时间戳列（可能为 null）
   final String? tsColumn;
 
+  /// JSON 列表图片列（如分集/章节/关卡的 images）
+  final String? imageJsonColumn;
+
   const IncGroupSpec({
     required this.table,
     required this.parentTable,
     required this.parentColumn,
     this.tsColumn,
+    this.imageJsonColumn,
   });
 }
 
@@ -53,13 +57,17 @@ class IncEntities {
       table: 'movies',
       tsColumn: 'updated_at',
       imageColumns: ['poster_path'],
-      groups: {'movie_people': 'movie_people', 'movie_posters': 'movie_posters'},
+      groups: {
+        'movie_people': 'movie_people',
+        'movie_posters': 'movie_posters',
+        'movie_episodes': 'movie_episodes',
+      },
     ),
     IncEntitySpec(
       table: 'books',
       tsColumn: 'updated_at',
       imageColumns: ['cover_path'],
-      groups: {'book_people': 'book_people'},
+      groups: {'book_people': 'book_people', 'book_chapters': 'book_chapters'},
     ),
     IncEntitySpec(
       table: 'notes',
@@ -70,7 +78,12 @@ class IncEntities {
       table: 'games',
       tsColumn: 'updated_at',
       imageColumns: ['cover_path'],
-      groups: {'game_people': 'game_people', 'game_screenshots': 'game_screenshots', 'game_completions': 'game_completions'},
+      groups: {
+        'game_people': 'game_people',
+        'game_screenshots': 'game_screenshots',
+        'game_completions': 'game_completions',
+        'game_levels': 'game_levels',
+      },
     ),
     IncEntitySpec(table: 'movie_reviews', tsColumn: 'updated_at', imageJsonColumn: 'images'),
     IncEntitySpec(table: 'book_reviews', tsColumn: 'updated_at', imageJsonColumn: 'images'),
@@ -109,6 +122,9 @@ class IncEntities {
     IncGroupSpec(table: 'game_people', parentTable: 'games', parentColumn: 'game_id'),
     IncGroupSpec(table: 'game_screenshots', parentTable: 'games', parentColumn: 'game_id', tsColumn: 'created_at'),
     IncGroupSpec(table: 'game_completions', parentTable: 'games', parentColumn: 'game_id', tsColumn: 'updated_at'),
+    IncGroupSpec(table: 'movie_episodes', parentTable: 'movies', parentColumn: 'movie_id', tsColumn: 'updated_at', imageJsonColumn: 'images'),
+    IncGroupSpec(table: 'book_chapters', parentTable: 'books', parentColumn: 'book_id', tsColumn: 'updated_at', imageJsonColumn: 'images'),
+    IncGroupSpec(table: 'game_levels', parentTable: 'games', parentColumn: 'game_id', tsColumn: 'updated_at', imageJsonColumn: 'images'),
     IncGroupSpec(table: 'playlist_items', parentTable: 'playlists', parentColumn: 'playlist_id', tsColumn: 'added_at'),
   ];
 

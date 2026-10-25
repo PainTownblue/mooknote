@@ -26,6 +26,7 @@ class _LayoutSettingsPageState extends State<LayoutSettingsPage> {
   int _movieDisplayMode = 0;
   int _movieStatusBarStyle = 0;
   bool _bookshelfMode = false;
+  int _bookDisplayMode = 0;
   int _bookStatusBarStyle = 0;
   bool _gameWallMode = false;
   int _gameStatusBarStyle = 0;
@@ -58,6 +59,7 @@ class _LayoutSettingsPageState extends State<LayoutSettingsPage> {
     _movieDisplayMode = _userPrefs.movieDisplayMode;
     _movieStatusBarStyle = _userPrefs.movieStatusBarStyle;
     _bookshelfMode = _userPrefs.bookshelfMode;
+    _bookDisplayMode = _userPrefs.bookDisplayMode;
     _bookStatusBarStyle = _userPrefs.bookStatusBarStyle;
     _gameWallMode = _userPrefs.gameWallMode;
     _gameStatusBarStyle = _userPrefs.gameStatusBarStyle;
@@ -152,8 +154,10 @@ class _LayoutSettingsPageState extends State<LayoutSettingsPage> {
     if (_bookshelfMode) {
       parts.add('书架'.tr);
     } else {
-      parts.add('阅读状态'.tr);
-      parts.add(['胶囊'.tr, '下划线'.tr, '芯片'.tr, '下拉'.tr][_bookStatusBarStyle]);
+      parts.add(_bookDisplayMode == 1 ? '分类状态'.tr : '阅读状态'.tr);
+      if (_bookDisplayMode == 0) {
+        parts.add(['胶囊'.tr, '下划线'.tr, '芯片'.tr, '下拉'.tr][_bookStatusBarStyle]);
+      }
     }
     parts.add(['海报网格'.tr, '列表'.tr, '年份网格'.tr, '大图卡片'.tr][_bookLayout]);
     if ((_bookLayout == 0 || _bookLayout == 2) && _bookGridCount > 0) {
@@ -552,15 +556,24 @@ class _LayoutSettingsPageState extends State<LayoutSettingsPage> {
             ),
             _sheetDivider(colors),
             _sheetOptionRow(
-              label: '显示模式'.tr, selected: _bookshelfMode ? 1 : 0,
+              label: '显示模式'.tr, selected: _bookshelfMode ? 2 : _bookDisplayMode,
               options: [
                 (0, Icons.auto_stories_outlined, '阅读状态'.tr),
-                (1, Icons.menu_book_outlined, '书架'.tr),
+                (1, Icons.category_outlined, '分类状态'.tr),
+                (2, Icons.menu_book_outlined, '书架'.tr),
               ],
-              onChanged: (v) { _setWallMode('book', v == 1); setSheetState(() {}); },
+              onChanged: (v) {
+                if (v == 2) {
+                  _setWallMode('book', true);
+                } else {
+                  if (_bookshelfMode) _setWallMode('book', false);
+                  _setDisplayMode('book', v);
+                }
+                setSheetState(() {});
+              },
               colors: colors,
             ),
-            if (!_bookshelfMode) ...[
+            if (!_bookshelfMode && _bookDisplayMode == 0) ...[
               _sheetDivider(colors),
               _sheetOptionRow(
                 label: '状态栏样式'.tr, selected: _bookStatusBarStyle,
@@ -836,6 +849,10 @@ class _LayoutSettingsPageState extends State<LayoutSettingsPage> {
         await _userPrefs.setMovieDisplayMode(value);
         setState(() => _movieDisplayMode = value);
         if (mounted) context.read<AppProvider>().setMovieDisplayMode(value);
+      case 'book':
+        await _userPrefs.setBookDisplayMode(value);
+        setState(() => _bookDisplayMode = value);
+        if (mounted) context.read<AppProvider>().setBookDisplayMode(value);
     }
   }
 

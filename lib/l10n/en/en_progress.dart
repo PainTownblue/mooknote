@@ -1,0 +1,54 @@
+/// 分集/章节/关卡进度功能英文翻译
+const Map<String, String> enProgress = {
+  // 列表页
+  '分集记录': 'Episodes',
+  '章节记录': 'Chapters',
+  '关卡记录': 'Levels',
+  '第{n}集': 'Ep. {n}',
+  '第{n}章': 'Ch. {n}',
+  '第{n}关': 'Level {n}',
+  '暂无记录，点击右下角添加': 'No records yet. Tap the button below to add.',
+  '或点击右上角「批量生成」': 'Or use the batch-generate button in the top bar',
+  '批量生成': 'Batch Generate',
+  '请输入总{N}': 'Enter total {N}',
+  '集号': 'Episode No.',
+  '章节号': 'Chapter No.',
+  '关卡号': 'Level No.',
+  '已观看': 'Watched',
+  '已阅读': 'Read',
+  '已通关': 'Cleared',
+  '观看日期': 'Watch Date',
+  '阅读日期': 'Read Date',
+  '通关日期': 'Clear Date',
+  '暂无记录': 'No records',
+
+  // 编辑页
+  '名称（选填）': 'Title (optional)',
+  '评价（选填）': 'Review (optional)',
+  '添加{n}': 'Add {n}',
+  '编辑{n}': 'Edit {n}',
+  '未选择': 'Not selected',
+  '名称': 'Title',
+  '选填': 'Optional',
+  '评价': 'Review',
+  '截图': 'Screenshots',
+
+  // 通用
+  '请输入有效数字': 'Please enter a valid number',
+  '数量不能超过 9999': 'Quantity cannot exceed 9999',
+  '确定要删除{n}吗？此操作不可恢复。': 'Delete {n}? This cannot be undone.',
+  '保存成功': 'Saved',
+  '保存失败: {e}': 'Save failed: {e}',
+  '选择图片失败: {e}': 'Failed to pick image: {e}',
+
+  // Excel 导出
+  '分集': 'Episodes',
+  '章节': 'Chapters',
+  '关卡': 'Levels',
+  '影视名称': 'Movie/Show',
+  '书籍名称': 'Book',
+  '游戏名称': 'Game',
+  '截图数': 'Screenshots',
+  '是': 'Yes',
+  '否': 'No',
+};

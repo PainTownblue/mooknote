@@ -674,6 +674,12 @@ class IncSyncService {
         if (pa == null || ts.isAfter(pa)) continue; // 待推送 → 保留
         if (mc == null || !ts.isBefore(mc)) continue; // 快照后才动 → 保留
         await db.delete(spec.table, where: 'id = ?', whereArgs: [id]);
+        // 与 _mergeDelete 保持一致：父行对账删除时级联子组
+        for (final groupKey in spec.groups.keys) {
+          final gspec = IncEntities.groupSpecOf(groupKey);
+          if (gspec == null) continue;
+          await db.delete(groupKey, where: '${gspec.parentColumn} = ?', whereArgs: [id]);
+        }
         removed++;
         counters.downRecords++;
       }
@@ -770,11 +776,16 @@ class IncSyncService {
             : entry.key == 'game_screenshots'
                 ? 'screenshot_path'
                 : null;
-        if (imgCol == null) continue;
+        final jsonCol = IncEntities.groupSpecOf(entry.key)?.imageJsonColumn;
         for (final r in entry.value) {
-          final v = r[imgCol];
-          if (v is String && v.isNotEmpty) {
-            imageLogical.add(IncRowCodec.toLogical(v));
+          if (imgCol != null) {
+            final v = r[imgCol];
+            if (v is String && v.isNotEmpty) {
+              imageLogical.add(IncRowCodec.toLogical(v));
+            }
+          }
+          if (jsonCol != null) {
+            imageLogical.addAll(codec.logicalFromJsonList(r[jsonCol] as String?));
           }
         }
       }
@@ -834,17 +845,30 @@ class IncSyncService {
           : entry.key == 'game_screenshots'
               ? 'screenshot_path'
               : null;
-      if (imgCol == null) continue;
+      final jsonCol = IncEntities.groupSpecOf(entry.key)?.imageJsonColumn;
       for (final r in entry.value) {
-        final v = r[imgCol];
-        if (v is String && v.isNotEmpty) {
-          await _downloadImage(
-            remote: remote,
-            codec: codec,
-            logical: IncRowCodec.toLogical(v),
-            imageMap: imageMap,
-            counters: counters,
-          );
+        if (imgCol != null) {
+          final v = r[imgCol];
+          if (v is String && v.isNotEmpty) {
+            await _downloadImage(
+              remote: remote,
+              codec: codec,
+              logical: IncRowCodec.toLogical(v),
+              imageMap: imageMap,
+              counters: counters,
+            );
+          }
+        }
+        if (jsonCol != null) {
+          for (final logical in codec.logicalFromJsonList(r[jsonCol] as String?)) {
+            await _downloadImage(
+              remote: remote,
+              codec: codec,
+              logical: logical,
+              imageMap: imageMap,
+              counters: counters,
+            );
+          }
         }
       }
     }
@@ -878,7 +902,13 @@ class IncSyncService {
     }
 
     if (local != null) {
+      // 父行删除必须级联其整组子表，否则分集/章节/海报等子行在对端永久残留
       await db.delete(table, where: 'id = ?', whereArgs: [id]);
+      for (final groupKey in spec.groups.keys) {
+        final gspec = IncEntities.groupSpecOf(groupKey);
+        if (gspec == null) continue;
+        await db.delete(groupKey, where: '${gspec.parentColumn} = ?', whereArgs: [id]);
+      }
       counters.downRecords++;
     }
     await SyncTombstones.recordRemote(table, id, incomingTs, origin);
@@ -1010,6 +1040,13 @@ class IncSyncService {
 
   // ── 推送 ────────────────────────────────────────────
 
+  /// 分集/章节/关卡历史上使用过软删，查询推送时需排除残留的 is_deleted=1 行
+  static String? _softDeleteGroupWhere(String table) {
+    return const {'movie_episodes', 'book_chapters', 'game_levels'}.contains(table)
+        ? 'is_deleted = 0'
+        : null;
+  }
+
   Future<void> _push({
     required IncRemote remote,
     required IncRowCodec codec,
@@ -1059,7 +1096,9 @@ class IncSyncService {
     for (final gspec in IncEntities.groups) {
       final tsCol = gspec.tsColumn;
       if (tsCol == null) continue;
-      final rows = await db.query(gspec.table);
+      // 分集/章节/关卡历史上可能残留 is_deleted=1 的行（旧版软删），不得推送
+      final softWhere = _softDeleteGroupWhere(gspec.table);
+      final rows = await db.query(gspec.table, where: softWhere);
       for (final r in rows) {
         if (changedAfter(r[tsCol] as String?)) {
           groupOnly.putIfAbsent(gspec.table, () => {}).add(r[gspec.parentColumn] as String);
@@ -1075,7 +1114,11 @@ class IncSyncService {
       final result = <String, List<Map<String, dynamic>>>{};
       for (final groupKey in spec.groups.keys) {
         final gspec = IncEntities.groupSpecOf(groupKey)!;
-        final rows = await db.query(groupKey, where: '${gspec.parentColumn} = ?', whereArgs: [parentId]);
+        final softWhere = _softDeleteGroupWhere(groupKey);
+        final where = softWhere == null
+            ? '${gspec.parentColumn} = ?'
+            : '${gspec.parentColumn} = ? AND $softWhere';
+        final rows = await db.query(groupKey, where: where, whereArgs: [parentId]);
         result[groupKey] = rows;
         for (final r in rows) {
           final imgCol = groupKey == 'movie_posters'
@@ -1092,6 +1135,19 @@ class IncSyncService {
               newImageMap: newImageMap,
               counters: counters,
             );
+          }
+          // JSON 列表图片列（分集/章节/关卡）
+          final jsonCol = gspec.imageJsonColumn;
+          if (jsonCol != null) {
+            for (final logical in codec.logicalFromJsonList(r[jsonCol] as String?)) {
+              await _pushImage(
+                remote: remote,
+                codec: codec,
+                logical: logical,
+                newImageMap: newImageMap,
+                counters: counters,
+              );
+            }
           }
         }
       }

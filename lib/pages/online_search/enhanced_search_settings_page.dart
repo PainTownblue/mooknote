@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../../utils/user_prefs.dart';
 import '../../utils/server_config.dart';
 import '../settings/legal_page.dart';
+import '../../utils/toast_util.dart';
 import '../../l10n/app_strings.dart';
 
 /// 增强搜索设置页面
@@ -22,6 +23,7 @@ class _EnhancedSearchSettingsPageState
   final _bookTokenController = TextEditingController();
 
   bool _enabled = false;
+  bool _testing = false;
   // null=未验证/检查中, true=有效, false=无效
   bool? _movieTokenValid;
   bool? _bookTokenValid;
@@ -34,7 +36,6 @@ class _EnhancedSearchSettingsPageState
     _enabled = _userPrefs.enhancedSearchEnabled;
     _movieTokenController.text = _userPrefs.movieSearchToken;
     _bookTokenController.text = _userPrefs.bookSearchToken;
-    if (_enabled) _verifyTokens();
   }
 
   @override
@@ -44,52 +45,69 @@ class _EnhancedSearchSettingsPageState
     super.dispose();
   }
 
+  /// 仅测试当前输入的两个 Token，不保存
   Future<void> _verifyTokens() async {
     final movieToken = _movieTokenController.text.trim();
     final bookToken = _bookTokenController.text.trim();
+    if (movieToken.isEmpty && bookToken.isEmpty) return;
 
-    if (movieToken.isNotEmpty) {
-      _checkToken(movieToken, 'movie').then((result) async {
-        if (!mounted) return;
-        final valid = result != null && result['valid'] == true;
-        if (valid) {
-          setState(() {
-            _movieTokenValid = true;
-            _movieTokenMessage = result['messageString'] as String?;
-          });
-        } else {
-          // 当前类型失败，用另一种类型重试
-          final retry = await _checkToken(movieToken, 'book');
-          if (!mounted) return;
-          setState(() {
-            _movieTokenValid = false;
-            _movieTokenMessage = retry != null && retry['valid'] == true
-                ? '该 Token 可能是书籍类型，请检查是否填错位置'.tr
-                : ((result != null ? result['messageString'] as String? : null) ?? '验证失败'.tr);
-          });
-        }
+    setState(() {
+      _testing = true;
+      _movieTokenValid = null;
+      _bookTokenValid = null;
+      _movieTokenMessage = null;
+      _bookTokenMessage = null;
+    });
+
+    try {
+      await Future.wait([
+        if (movieToken.isNotEmpty) _verifyMovie(movieToken),
+        if (bookToken.isNotEmpty) _verifyBook(bookToken),
+      ]);
+    } finally {
+      if (mounted) setState(() => _testing = false);
+    }
+  }
+
+  Future<void> _verifyMovie(String token) async {
+    final result = await _checkToken(token, 'movie');
+    if (!mounted) return;
+    if (result != null && result['valid'] == true) {
+      setState(() {
+        _movieTokenValid = true;
+        _movieTokenMessage = result['messageString'] as String?;
+      });
+    } else {
+      // 当前类型失败，用另一种类型重试
+      final retry = await _checkToken(token, 'book');
+      if (!mounted) return;
+      setState(() {
+        _movieTokenValid = false;
+        _movieTokenMessage = retry != null && retry['valid'] == true
+            ? '该 Token 可能是书籍类型，请检查是否填错位置'.tr
+            : ((result != null ? result['messageString'] as String? : null) ??
+                '验证失败'.tr);
       });
     }
+  }
 
-    if (bookToken.isNotEmpty) {
-      _checkToken(bookToken, 'book').then((result) async {
-        if (!mounted) return;
-        final valid = result != null && result['valid'] == true;
-        if (valid) {
-          setState(() {
-            _bookTokenValid = true;
-            _bookTokenMessage = result['messageString'] as String?;
-          });
-        } else {
-          final retry = await _checkToken(bookToken, 'movie');
-          if (!mounted) return;
-          setState(() {
-            _bookTokenValid = false;
-            _bookTokenMessage = retry != null && retry['valid'] == true
-                ? '该 Token 可能是影视类型，请检查是否填错位置'.tr
-                : ((result != null ? result['messageString'] as String? : null) ?? '验证失败'.tr);
-          });
-        }
+  Future<void> _verifyBook(String token) async {
+    final result = await _checkToken(token, 'book');
+    if (!mounted) return;
+    if (result != null && result['valid'] == true) {
+      setState(() {
+        _bookTokenValid = true;
+        _bookTokenMessage = result['messageString'] as String?;
+      });
+    } else {
+      final retry = await _checkToken(token, 'movie');
+      if (!mounted) return;
+      setState(() {
+        _bookTokenValid = false;
+        _bookTokenMessage = retry != null && retry['valid'] == true
+            ? '该 Token 可能是影视类型，请检查是否填错位置'.tr
+            : ((result != null ? result['messageString'] as String? : null) ??
+                '验证失败'.tr);
       });
     }
   }
@@ -114,18 +132,18 @@ class _EnhancedSearchSettingsPageState
       await _userPrefs.setMovieSearchToken(_movieTokenController.text.trim());
       await _userPrefs.setBookSearchToken(_bookTokenController.text.trim());
       await _userPrefs.setEnhancedSearchEnabled(true);
-      setState(() => _enabled = true);
-      _verifyTokens();
+      if (mounted) setState(() => _enabled = true);
     } else {
       await _userPrefs.setEnhancedSearchEnabled(false);
-      setState(() {
-        _enabled = false;
-        _movieTokenValid = null;
-        _bookTokenValid = null;
-        _movieTokenMessage = null;
-        _bookTokenMessage = null;
-      });
+      if (mounted) setState(() => _enabled = false);
     }
+  }
+
+  /// 直接保存当前输入的两个 Token，不强制测试
+  Future<void> _save() async {
+    await _userPrefs.setMovieSearchToken(_movieTokenController.text.trim());
+    await _userPrefs.setBookSearchToken(_bookTokenController.text.trim());
+    if (mounted) ToastUtil.show(context, '保存成功'.tr);
   }
 
   @override
@@ -135,22 +153,6 @@ class _EnhancedSearchSettingsPageState
       backgroundColor: colors.surface,
       appBar: AppBar(
         title: Text('增强搜索'.tr),
-        actions: [
-          if (_enabled)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: '刷新验证'.tr,
-              onPressed: () {
-                setState(() {
-                  _movieTokenValid = null;
-                  _bookTokenValid = null;
-                  _movieTokenMessage = null;
-                  _bookTokenMessage = null;
-                });
-                _verifyTokens();
-              },
-            ),
-        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -336,7 +338,7 @@ class _EnhancedSearchSettingsPageState
             ],
           ),
         ),
-        if (_enabled && valid != null)
+        if (valid != null)
           Padding(
             padding: const EdgeInsets.only(top: 6, left: 4),
             child: Row(
@@ -358,7 +360,7 @@ class _EnhancedSearchSettingsPageState
               ],
             ),
           ),
-        if (_enabled && valid == null && controller.text.trim().isNotEmpty)
+        if (_testing && valid == null && controller.text.trim().isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 6, left: 4),
             child: Row(
@@ -381,35 +383,58 @@ class _EnhancedSearchSettingsPageState
     );
   }
 
-  Future<void> _saveAndVerify() async {
-    await _userPrefs.setMovieSearchToken(_movieTokenController.text.trim());
-    await _userPrefs.setBookSearchToken(_bookTokenController.text.trim());
-    setState(() {
-      _movieTokenValid = null;
-      _bookTokenValid = null;
-      _movieTokenMessage = null;
-      _bookTokenMessage = null;
-    });
-    _verifyTokens();
-  }
-
   Widget _buildSaveButton(ColorScheme colors) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        GestureDetector(
-          onTap: _saveAndVerify,
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: colors.primary,
-              borderRadius: BorderRadius.circular(10),
+        Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 44,
+                child: OutlinedButton(
+                  onPressed: _testing ? null : _verifyTokens,
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: colors.outlineVariant),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: _testing
+                      ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              color:
+                                  colors.onSurface.withValues(alpha: 0.4)))
+                      : Text('测试连接'.tr,
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: colors.onSurface)),
+                ),
+              ),
             ),
-            child: Center(
-              child: Text('保存并验证'.tr, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: colors.onPrimary)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SizedBox(
+                height: 44,
+                child: ElevatedButton(
+                  onPressed: _testing ? null : _save,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colors.primary,
+                    foregroundColor: colors.onPrimary,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: Text('保存'.tr,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600)),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
         const SizedBox(height: 8),
         Align(

@@ -52,7 +52,8 @@ class _BangumiSearchPageBodyState extends State<BangumiSearchPageBody> {
   @override
   void initState() {
     super.initState();
-    _bgm.configure(_userPrefs.bangumiAccessToken);
+    _bgm.configure(_userPrefs.bangumiAccessToken,
+        proxy: _userPrefs.bangumiProxy);
     _history = _userPrefs.searchHistory;
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=

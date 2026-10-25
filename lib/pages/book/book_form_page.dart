@@ -55,6 +55,7 @@ class _BookFormPageState extends State<BookFormPage> {
   List<String> _genres = [];
   String? _coverPath;
   String _status = 'want_to_read';
+  String _category = 'book';
   DateTime? _publishDate;
   DateTime? _startDate;
   DateTime? _finishDate;
@@ -88,6 +89,7 @@ class _BookFormPageState extends State<BookFormPage> {
       _genres = List.from(book.genres);
       _coverPath = book.coverPath;
       _status = book.status;
+      _category = book.category;
       _publishDate = book.publishDate;
       _startDate = book.startDate;
       _finishDate = book.finishDate;
@@ -384,6 +386,45 @@ class _BookFormPageState extends State<BookFormPage> {
           )),
         ]),
         const SizedBox(height: 12),
+        // 分类
+        Row(
+          children: [
+            Text('分类'.tr, style: TextStyle(fontSize: 12, color: colors.onSurface.withValues(alpha: 0.4))),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: _categories.map((c) {
+                    final isSelected = _category == c.$2;
+                    return GestureDetector(
+                      onTap: () => setState(() => _category = c.$2),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        margin: EdgeInsets.only(right: c == _categories.last ? 0 : 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: isSelected ? colors.primary : colors.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          c.$1,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
+                            color: isSelected ? colors.onPrimary : colors.onSurface.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
         // 评分
         Row(children: [
           Text('评分'.tr, style: TextStyle(fontSize: 12, color: colors.onSurface.withValues(alpha: 0.4))),
@@ -422,6 +463,15 @@ class _BookFormPageState extends State<BookFormPage> {
       ]),
     );
   }
+
+  /// 书籍分类选项
+  List<(String, String)> get _categories => [
+    ('书籍'.tr, 'book'),
+    ('小说'.tr, 'novel'),
+    ('漫画'.tr, 'comic'),
+    ('报刊'.tr, 'newspaper'),
+    ('论文'.tr, 'paper'),
+  ];
 
   Widget _buildStatusOption(String label, String value) {
     final isSelected = _status == value;
@@ -749,7 +799,7 @@ class _BookFormPageState extends State<BookFormPage> {
         final newBook = Book(
           id: newBookId, title: _titleController.text.trim(), coverPath: finalCoverPath,
           authors: _authors, translators: _translators, alternateTitles: _alternateTitles, publisher: _publisherController.text.trim(),
-          genres: _genres, summary: _summaryController.text.trim(), rating: rating, status: _status,
+          genres: _genres, summary: _summaryController.text.trim(), rating: rating, status: _status, category: _category,
           isbn: _isbnController.text.trim().isNotEmpty ? _isbnController.text.trim() : null,
           publishDate: _publishDate, startDate: _startDate, finishDate: _finishDate, readCount: _readCount, createdAt: now, updatedAt: now,
         );
@@ -761,7 +811,7 @@ class _BookFormPageState extends State<BookFormPage> {
         final updatedBook = widget.book!.copyWith(
           title: _titleController.text.trim(), coverPath: _coverPath,
           authors: _authors, translators: _translators, alternateTitles: _alternateTitles, publisher: _publisherController.text.trim(),
-          genres: _genres, summary: _summaryController.text.trim(), rating: rating, status: _status,
+          genres: _genres, summary: _summaryController.text.trim(), rating: rating, status: _status, category: _category,
           isbn: _isbnController.text.trim().isNotEmpty ? _isbnController.text.trim() : null,
           publishDate: _publishDate, startDate: _startDate, finishDate: _finishDate, readCount: _readCount, updatedAt: now,
         );

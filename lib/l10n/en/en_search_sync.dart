@@ -7,6 +7,8 @@ const Map<String, String> enSearchSync = {
   '书籍': 'Books',
   '笔记': 'Notes',
   '游戏': 'Games',
+  '自定义': 'Custom',
+  '(无标题)': '(Untitled)',
   '输入关键词搜索': 'Enter a keyword to search',
   '支持标题、导演、作者、标签、简介': 'Supports titles, directors, authors, tags, summaries',
   '未找到相关内容': 'No results found',
@@ -59,6 +61,27 @@ const Map<String, String> enSearchSync = {
   '确定删除「{kw}」？': 'Delete "{kw}"?',
   '删除': 'Delete',
   '输入关键词后点击搜索': 'Enter a keyword and tap Search',
+
+  // ── 在线搜索 API 聚合入口 ──
+  '在线搜索 API': 'Online Search APIs',
+  '增强搜索、TMDB、Bangumi 数据源配置':
+      'Enhanced Search, TMDB and Bangumi data sources',
+  '选择数据源进行配置': 'Choose  data source to configure',
+
+  // ── 测试/保存/代理（TMDB/Bangumi 共用）──
+  '测试连接': 'Test Connection',
+  '测试成功，可以保存': 'Connection OK, ready to save',
+  '网络不通，无法连接 TMDB 服务器':
+      'Network unreachable, cannot connect to TMDB server',
+  '网络不通，无法连接 Bangumi 服务器':
+      'Network unreachable, cannot connect to Bangumi server',
+  'HTTP 代理地址（选填）': 'HTTP proxy address (optional)',
+  '如 127.0.0.1:7890（仅支持 HTTP 代理）':
+      'e.g. 127.0.0.1:7890 (HTTP proxy only)',
+  '无法直连时，可填写本地 HTTP 代理地址，仅对 TMDB 接口生效（不支持 SOCKS5）':
+      'If direct access fails, enter a local HTTP proxy; TMDB API only (SOCKS5 not supported)',
+  '无法直连时，可填写本地 HTTP 代理地址，仅对 Bangumi 接口生效（不支持 SOCKS5）':
+      'If direct access fails, enter a local HTTP proxy; Bangumi API only (SOCKS5 not supported)',
 
   // ── 增强搜索设置 ──
   '该 Token 可能是书籍类型，请检查是否填错位置':

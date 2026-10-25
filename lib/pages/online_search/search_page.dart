@@ -8,6 +8,9 @@ import '../book/book_detail_page.dart';
 import '../note/note_detail_page.dart';
 import '../game/game_detail_page.dart';
 import '../../widgets/fade_in_local_image.dart';
+import '../../data/custom_module/custom_module_design_dao.dart';
+import '../custom_module/custom_module_detail_page.dart';
+import '../../utils/slide_up_page_route.dart';
 import '../../l10n/app_strings.dart';
 
 /// 搜索页面（带 Scaffold + AppBar）
@@ -45,13 +48,22 @@ class _SearchPageBodyState extends State<SearchPageBody> {
   bool _showBooks = true;
   bool _showNotes = true;
   bool _showGames = true;
+  bool _showCustom = true;
 
   List<_SearchResult> _results = [];
   bool _hasSearched = false;
   List<String> _matchingTags = [];
   String? _selectedTag;
 
+  // 各类型命中数（含自定义模块），由异步搜索统一算出供筛选栏展示
+  final Map<String, int> _counts = {'movie': 0, 'book': 0, 'note': 0, 'game': 0, 'custom': 0};
+  // 模块激活设计缓存：moduleId -> design（null 表示无激活设计，仅匹配标题）
+  final Map<String, CustomModuleDesign?> _designCache = {};
+  final CustomModuleDesignDao _designDao = CustomModuleDesignDao();
+
   Timer? _debounce;
+  // 搜索作废序号：筛选 chip 可绕过防抖直接发起搜索，乱序完成时只接受最后一次结果
+  int _searchToken = 0;
 
   @override
   void dispose() {
@@ -66,63 +78,162 @@ class _SearchPageBodyState extends State<SearchPageBody> {
     _debounce = Timer(const Duration(milliseconds: 250), _performSearch);
   }
 
-  void _performSearch() {
+  // 单一匹配判定（结果与计数共用，避免两处各写一份）
+  bool _movieMatch(Movie m, String kw) =>
+      m.title.toLowerCase().contains(kw) ||
+      m.alternateTitles.any((t) => t.toLowerCase().contains(kw)) ||
+      (m.summary?.toLowerCase().contains(kw) ?? false) ||
+      m.genres.any((g) => g.toLowerCase().contains(kw)) ||
+      m.directors.any((d) => d.toLowerCase().contains(kw)) ||
+      m.writers.any((w) => w.toLowerCase().contains(kw)) ||
+      m.actors.any((a) => a.toLowerCase().contains(kw));
+
+  bool _bookMatch(Book b, String kw) =>
+      b.title.toLowerCase().contains(kw) ||
+      b.alternateTitles.any((t) => t.toLowerCase().contains(kw)) ||
+      (b.summary?.toLowerCase().contains(kw) ?? false) ||
+      b.authors.any((a) => a.toLowerCase().contains(kw));
+
+  bool _noteMatch(Note n, String kw) =>
+      n.title.toLowerCase().contains(kw) ||
+      n.content.toLowerCase().contains(kw) ||
+      n.tags.any((t) => t.toLowerCase().contains(kw));
+
+  bool _gameMatch(Game g, String kw) =>
+      g.title.toLowerCase().contains(kw) ||
+      g.genres.any((e) => e.toLowerCase().contains(kw)) ||
+      g.platforms.any((p) => p.toLowerCase().contains(kw)) ||
+      g.versions.any((v) => v.toLowerCase().contains(kw));
+
+  // 分集/章节/关卡命中（标题、评价、序号）后并入对应父类 chip
+  bool _episodeMatch(MovieEpisode e, String kw) =>
+      e.title.toLowerCase().contains(kw) ||
+      e.review.toLowerCase().contains(kw) ||
+      '${e.episodeNo}'.contains(kw);
+
+  bool _chapterMatch(BookChapter c, String kw) =>
+      c.title.toLowerCase().contains(kw) ||
+      c.review.toLowerCase().contains(kw) ||
+      '${c.chapterNo}'.contains(kw);
+
+  bool _levelMatch(GameLevel l, String kw) =>
+      l.title.toLowerCase().contains(kw) ||
+      l.review.toLowerCase().contains(kw) ||
+      '${l.levelNo}'.contains(kw);
+
+  Set<String> _matchingParentIds<T>(List<T> items, bool Function(T) match, String Function(T) parentOf) {
+    final ids = <String>{};
+    for (final e in items) {
+      if (match(e)) ids.add(parentOf(e));
+    }
+    return ids;
+  }
+
+  /// 自定义条目：始终匹配标题；有激活设计时再匹配文本类字段
+  /// （text/longText/multiText/status），跳过图片/数字/日期/评分等。
+  bool _customItemMatch(CustomModuleItem item, String kw, CustomModuleDesign? design) {
+    if (item.title.toLowerCase().contains(kw)) return true;
+    if (design == null) return false;
+    for (final field in design.fields) {
+      final isTextual = field.type == CustomFieldType.text ||
+          field.type == CustomFieldType.longText ||
+          field.type == CustomFieldType.multiText ||
+          field.type == CustomFieldType.status;
+      if (!isTextual) continue;
+      final value = item.data[field.key];
+      if (value is String) {
+        if (value.toLowerCase().contains(kw)) return true;
+      } else if (value is List) {
+        if (value.any((e) => e is String && e.toLowerCase().contains(kw))) return true;
+      }
+    }
+    return false;
+  }
+
+  Future<CustomModuleDesign?> _designFor(String moduleId) async {
+    if (_designCache.containsKey(moduleId)) return _designCache[moduleId];
+    final design = await _designDao.getActiveDesign(moduleId);
+    _designCache[moduleId] = design;
+    return design;
+  }
+
+  Future<void> _performSearch() async {
+    final token = ++_searchToken;
     final keyword = _searchController.text.trim();
     if (keyword.isEmpty) {
-      setState(() { _results = []; _hasSearched = false; });
+      setState(() {
+        _results = [];
+        _hasSearched = false;
+        _matchingTags = [];
+        _selectedTag = null;
+        _counts.updateAll((_, __) => 0);
+      });
       return;
     }
     final provider = context.read<AppProvider>();
-    final lowerKeyword = keyword.toLowerCase();
+    final kw = keyword.toLowerCase();
     final results = <_SearchResult>[];
 
+    // 分集/章节/关卡命中并入父类
+    final episodes = await provider.getAllMovieEpisodes();
+    final chapters = await provider.getAllBookChapters();
+    final levels = await provider.getAllGameLevels();
+    final episodeParents =
+        _matchingParentIds(episodes, (e) => _episodeMatch(e, kw), (e) => e.movieId);
+    final chapterParents =
+        _matchingParentIds(chapters, (c) => _chapterMatch(c, kw), (c) => c.bookId);
+    final levelParents =
+        _matchingParentIds(levels, (l) => _levelMatch(l, kw), (l) => l.gameId);
+    bool movieHit(Movie m) => _movieMatch(m, kw) || episodeParents.contains(m.id);
+    bool bookHit(Book b) => _bookMatch(b, kw) || chapterParents.contains(b.id);
+    bool gameHit(Game g) => _gameMatch(g, kw) || levelParents.contains(g.id);
+
     if (_showMovies) {
-      for (final movie in provider.movies.where((m) => !m.isDeleted)) {
-        if (movie.title.toLowerCase().contains(lowerKeyword) ||
-            movie.alternateTitles.any((t) => t.toLowerCase().contains(lowerKeyword)) ||
-            (movie.summary?.toLowerCase().contains(lowerKeyword) ?? false) ||
-            movie.genres.any((g) => g.toLowerCase().contains(lowerKeyword)) ||
-            movie.directors.any((d) => d.toLowerCase().contains(lowerKeyword)) ||
-            movie.writers.any((w) => w.toLowerCase().contains(lowerKeyword)) ||
-            movie.actors.any((a) => a.toLowerCase().contains(lowerKeyword))) {
-          results.add(_SearchResult(type: 'movie', data: movie));
-        }
+      for (final movie in provider.movies.where((m) => !m.isDeleted && movieHit(m))) {
+        results.add(_SearchResult(type: 'movie', data: movie));
       }
     }
     if (_showBooks) {
-      for (final book in provider.books.where((b) => !b.isDeleted)) {
-        if (book.title.toLowerCase().contains(lowerKeyword) ||
-            book.alternateTitles.any((t) => t.toLowerCase().contains(lowerKeyword)) ||
-            (book.summary?.toLowerCase().contains(lowerKeyword) ?? false) ||
-            book.authors.any((a) => a.toLowerCase().contains(lowerKeyword))) {
-          results.add(_SearchResult(type: 'book', data: book));
-        }
+      for (final book in provider.books.where((b) => !b.isDeleted && bookHit(b))) {
+        results.add(_SearchResult(type: 'book', data: book));
       }
     }
     if (_showNotes) {
-      for (final note in provider.notes.where((n) => !n.isDeleted)) {
-        if (note.title.toLowerCase().contains(lowerKeyword) ||
-            note.content.toLowerCase().contains(lowerKeyword) ||
-            note.tags.any((t) => t.toLowerCase().contains(lowerKeyword))) {
-          results.add(_SearchResult(type: 'note', data: note));
-        }
+      for (final note in provider.notes.where((n) => !n.isDeleted && _noteMatch(n, kw))) {
+        results.add(_SearchResult(type: 'note', data: note));
       }
     }
     if (_showGames) {
-      for (final game in provider.games.where((g) => !g.isDeleted)) {
-        if (game.title.toLowerCase().contains(lowerKeyword) ||
-            game.genres.any((g) => g.toLowerCase().contains(lowerKeyword)) ||
-            game.platforms.any((p) => p.toLowerCase().contains(lowerKeyword)) ||
-            game.versions.any((v) => v.toLowerCase().contains(lowerKeyword))) {
-          results.add(_SearchResult(type: 'game', data: game));
+      for (final game in provider.games.where((g) => !g.isDeleted && gameHit(g))) {
+        results.add(_SearchResult(type: 'game', data: game));
+      }
+    }
+    final customItems = await provider.ensureCustomItemsLoaded();
+    if (_showCustom) {
+      for (final item in customItems) {
+        final design = await _designFor(item.moduleId);
+        if (_customItemMatch(item, kw, design)) {
+          results.add(_SearchResult(type: 'custom', data: item));
         }
       }
     }
+
+    if (!mounted || token != _searchToken) return;
+    // 计数不受筛选开关影响，始终反映该关键词下各类型的总命中数
+    _counts['movie'] = provider.movies.where((m) => !m.isDeleted && movieHit(m)).length;
+    _counts['book'] = provider.books.where((b) => !b.isDeleted && bookHit(b)).length;
+    _counts['note'] = provider.notes.where((n) => !n.isDeleted && _noteMatch(n, kw)).length;
+    _counts['game'] = provider.games.where((g) => !g.isDeleted && gameHit(g)).length;
+    var customCount = 0;
+    for (final item in customItems) {
+      if (_customItemMatch(item, kw, _designCache[item.moduleId])) customCount++;
+    }
+    _counts['custom'] = customCount;
+
     setState(() {
       _results = results;
       _hasSearched = true;
-      // 收集匹配的标签
-      _matchingTags = _collectMatchingTags(lowerKeyword);
+      _matchingTags = _collectMatchingTags(kw);
       _selectedTag = null;
     });
   }
@@ -230,28 +341,26 @@ class _SearchPageBodyState extends State<SearchPageBody> {
   }
 
   Widget _buildFilterRow() {
-    final keyword = _searchController.text.trim();
-    final provider = context.read<AppProvider>();
-    int movieCount = 0, bookCount = 0, noteCount = 0, gameCount = 0;
-    if (keyword.isNotEmpty) {
-      final kw = keyword.toLowerCase();
-      movieCount = provider.movies.where((m) => !m.isDeleted && (m.title.toLowerCase().contains(kw) || m.alternateTitles.any((t) => t.toLowerCase().contains(kw)) || (m.summary?.toLowerCase().contains(kw) ?? false) || m.genres.any((g) => g.toLowerCase().contains(kw)) || m.directors.any((d) => d.toLowerCase().contains(kw)) || m.writers.any((w) => w.toLowerCase().contains(kw)) || m.actors.any((a) => a.toLowerCase().contains(kw)))).length;
-      bookCount = provider.books.where((b) => !b.isDeleted && (b.title.toLowerCase().contains(kw) || b.alternateTitles.any((t) => t.toLowerCase().contains(kw)) || (b.summary?.toLowerCase().contains(kw) ?? false) || b.authors.any((a) => a.toLowerCase().contains(kw)))).length;
-      noteCount = provider.notes.where((n) => !n.isDeleted && (n.title.toLowerCase().contains(kw) || n.content.toLowerCase().contains(kw) || n.tags.any((t) => t.toLowerCase().contains(kw)))).length;
-      gameCount = provider.games.where((g) => !g.isDeleted && (g.title.toLowerCase().contains(kw) || g.genres.any((e) => e.toLowerCase().contains(kw)) || g.platforms.any((p) => p.toLowerCase().contains(kw)) || g.versions.any((v) => v.toLowerCase().contains(kw)))).length;
-    }
-
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: Row(children: [
-        Expanded(child: _filterChip('影视'.tr, Icons.movie_outlined, _showMovies, movieCount, () { setState(() { _showMovies = !_showMovies; _performSearch(); }); })),
-        const SizedBox(width: 8),
-        Expanded(child: _filterChip('书籍'.tr, Icons.menu_book_outlined, _showBooks, bookCount, () { setState(() { _showBooks = !_showBooks; _performSearch(); }); })),
-        const SizedBox(width: 8),
-        Expanded(child: _filterChip('笔记'.tr, Icons.sticky_note_2_outlined, _showNotes, noteCount, () { setState(() { _showNotes = !_showNotes; _performSearch(); }); })),
-        const SizedBox(width: 8),
-        Expanded(child: _filterChip('游戏'.tr, Icons.sports_esports_outlined, _showGames, gameCount, () { setState(() { _showGames = !_showGames; _performSearch(); }); })),
-      ]),
+      padding: const EdgeInsets.only(bottom: 8),
+      child: SizedBox(
+        height: 34,
+        child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+        children: [
+          _filterChip('影视'.tr, Icons.movie_outlined, _showMovies, _counts['movie']!, () { setState(() { _showMovies = !_showMovies; _performSearch(); }); }),
+          const SizedBox(width: 8),
+          _filterChip('书籍'.tr, Icons.menu_book_outlined, _showBooks, _counts['book']!, () { setState(() { _showBooks = !_showBooks; _performSearch(); }); }),
+          const SizedBox(width: 8),
+          _filterChip('笔记'.tr, Icons.sticky_note_2_outlined, _showNotes, _counts['note']!, () { setState(() { _showNotes = !_showNotes; _performSearch(); }); }),
+          const SizedBox(width: 8),
+          _filterChip('游戏'.tr, Icons.sports_esports_outlined, _showGames, _counts['game']!, () { setState(() { _showGames = !_showGames; _performSearch(); }); }),
+          const SizedBox(width: 8),
+          _filterChip('自定义'.tr, Icons.dashboard_customize_outlined, _showCustom, _counts['custom']!, () { setState(() { _showCustom = !_showCustom; _performSearch(); }); }),
+        ],
+        ),
+      ),
     );
   }
 
@@ -337,6 +446,7 @@ class _SearchPageBodyState extends State<SearchPageBody> {
                     case 'book': return _buildBookItem(item.data as Book);
                     case 'note': return _buildNoteItem(item.data as Note);
                     case 'game': return _buildGameItem(item.data as Game);
+                    case 'custom': return _buildCustomItem(item.data as CustomModuleItem);
                     default: return const SizedBox.shrink();
                   }
                 },
@@ -543,6 +653,47 @@ class _SearchPageBodyState extends State<SearchPageBody> {
                 if (game.platforms.isNotEmpty)
                   Expanded(child: Text(game.platforms.take(2).join(' · '), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: colors.onSurface.withValues(alpha: 0.35)))),
               ]),
+            ]),
+          ),
+          const SizedBox(width: 4),
+          Icon(Icons.chevron_right, color: colors.onSurface.withValues(alpha: 0.15), size: 18),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildCustomItem(CustomModuleItem item) {
+    final colors = Theme.of(context).colorScheme;
+    final module = context.read<AppProvider>().getCustomModuleById(item.moduleId);
+    final title = item.title.trim().isEmpty ? '(无标题)'.tr : item.title;
+    return GestureDetector(
+      onTap: () {
+        if (module == null) return;
+        Navigator.push(context, SlideUpPageRoute(
+          page: CustomModuleDetailPage(module: module, itemId: item.id),
+        ));
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: colors.surfaceContainerHigh, borderRadius: BorderRadius.circular(12)),
+        child: Row(children: [
+          _posterThumb(item.coverPath, Icons.dashboard_customize_outlined),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                _typeBadge(module?.name ?? '自定义'.tr),
+                const Spacer(),
+                if (item.status != null && item.status!.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(color: colors.surfaceContainerHighest, borderRadius: BorderRadius.circular(4)),
+                    child: Text(item.status!, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: colors.onSurface.withValues(alpha: 0.4))),
+                  ),
+              ]),
+              const SizedBox(height: 6),
+              Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: colors.onSurface)),
             ]),
           ),
           const SizedBox(width: 4),

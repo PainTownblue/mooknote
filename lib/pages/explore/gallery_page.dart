@@ -19,6 +19,9 @@ const _categoryLabels = {
   'movie_review_image': '影评图片',
   'book_review_image': '书评图片',
   'game_review_image': '游戏评价图片',
+  'movie_episode_image': '分集截图',
+  'book_chapter_image': '章节配图',
+  'game_level_image': '关卡截图',
   'person_photo': '人物照片',
   'movie_character': '影视角色',
   'book_character': '书籍角色',
@@ -337,6 +340,10 @@ class _GalleryPageState extends State<GalleryPage> {
       case 'book_review_image':
       case 'game_review_image':
         return 1 / 1; // 评价图片方形占位（真实尺寸读出后覆盖）
+      case 'movie_episode_image':
+      case 'book_chapter_image':
+      case 'game_level_image':
+        return 16 / 9; // 分集/章节/关卡截图
       default:
         return 3 / 4;
     }

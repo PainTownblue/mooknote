@@ -84,6 +84,18 @@ class ImagePathHelper {
     return p.join(dir, fileName);
   }
 
+  /// 获取影视分集截图目录
+  /// 路径: images/movies/{movieId}/episodes/{episodeId}/
+  Future<String> getMovieEpisodeImagesDir(String movieId, String episodeId) async {
+    final dir = await getMovieImagesDir(movieId);
+    return p.join(dir, 'episodes', episodeId);
+  }
+
+  /// 删除某一影视分集的截图目录
+  Future<void> deleteMovieEpisodeImages(String movieId, String episodeId) async {
+    await _deleteDirectory(await getMovieEpisodeImagesDir(movieId, episodeId));
+  }
+
   // ==================== 书籍相关路径 ====================
 
   /// 获取书籍图片目录
@@ -98,6 +110,18 @@ class ImagePathHelper {
   Future<String> getBookCoverPath(String bookId, String fileName) async {
     final dir = await getBookImagesDir(bookId);
     return p.join(dir, fileName);
+  }
+
+  /// 获取书籍章节图片目录
+  /// 路径: images/books/{bookId}/chapters/{chapterId}/
+  Future<String> getBookChapterImagesDir(String bookId, String chapterId) async {
+    final dir = await getBookImagesDir(bookId);
+    return p.join(dir, 'chapters', chapterId);
+  }
+
+  /// 删除某一书籍章节的图片目录
+  Future<void> deleteBookChapterImages(String bookId, String chapterId) async {
+    await _deleteDirectory(await getBookChapterImagesDir(bookId, chapterId));
   }
 
   // ==================== 笔记相关路径 ====================
@@ -144,6 +168,18 @@ class ImagePathHelper {
   Future<String> getGameScreenshotImgPath(String gameId, String fileName) async {
     final dir = await getGameScreenshotImgsDir(gameId);
     return p.join(dir, fileName);
+  }
+
+  /// 获取游戏关卡截图目录
+  /// 路径: images/games/{gameId}/levels/{levelId}/
+  Future<String> getGameLevelImagesDir(String gameId, String levelId) async {
+    final dir = await getGameImagesDir(gameId);
+    return p.join(dir, 'levels', levelId);
+  }
+
+  /// 删除某一游戏关卡的截图目录
+  Future<void> deleteGameLevelImages(String gameId, String levelId) async {
+    await _deleteDirectory(await getGameLevelImagesDir(gameId, levelId));
   }
 
   // ==================== 评价相关路径 ====================

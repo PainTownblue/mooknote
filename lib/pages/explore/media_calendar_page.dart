@@ -27,10 +27,16 @@ class _MediaCalendarPageState extends State<MediaCalendarPage> {
   int _dateMode = 0; // 0: 创建日期, 1: 观看/开始阅读日期
 
   // {DateTime(dayOnly): [{path, title, type, data}]}
-  late Map<DateTime, List<_CalendarItem>> _dayItems;
+  // 初始空表：数据在 _initData 异步加载完成后填充，避免首帧访问未初始化的 late 字段
+  Map<DateTime, List<_CalendarItem>> _dayItems = {};
 
   // 游戏通关记录（按游戏 id 分组），供“观看/阅读”模式使用
   Map<String, List<GameCompletion>> _completionMap = {};
+
+  // 分集/章节/关卡记录，两种日期模式都会入历（格子显示父作品封面）
+  List<MovieEpisode> _episodes = [];
+  List<BookChapter> _chapters = [];
+  List<GameLevel> _levels = [];
 
   @override
   void initState() {
@@ -43,22 +49,38 @@ class _MediaCalendarPageState extends State<MediaCalendarPage> {
   }
 
   Future<void> _initData() async {
+    final provider = context.read<AppProvider>();
+    final results = await Future.wait([
+      provider.getAllMovieEpisodes(),
+      provider.getAllBookChapters(),
+      provider.getAllGameLevels(),
+      if (_dateMode == 1) provider.getGameCompletionsMap() else Future.value(<String, List<GameCompletion>>{}),
+    ]);
+    if (!mounted) return;
+    _episodes = results[0] as List<MovieEpisode>;
+    _chapters = results[1] as List<BookChapter>;
+    _levels = results[2] as List<GameLevel>;
     if (_dateMode == 1) {
-      _completionMap = await context.read<AppProvider>().getGameCompletionsMap();
-      if (!mounted) return;
+      _completionMap = results[3] as Map<String, List<GameCompletion>>;
     }
-    _buildDayMap();
+    setState(_buildDayMap);
   }
 
   void _buildDayMap() {
     final provider = context.read<AppProvider>();
     final map = <DateTime, List<_CalendarItem>>{};
 
+    // 日期在库里统一存 UTC，日历按本地日期归格（UTC+8 凌晨的记录不应落到前一天/上月）
+    DateTime dayOnly(DateTime d) {
+      final local = d.toLocal();
+      return DateTime(local.year, local.month, local.day);
+    }
+
     for (final m in provider.movies.where((m) => !m.isDeleted)) {
       if (m.posterPath == null || m.posterPath!.isEmpty) continue;
       final date = _dateMode == 1 ? m.watchDate : m.createdAt;
       if (date == null) continue;
-      final day = DateTime(date.year, date.month, date.day);
+      final day = dayOnly(date);
       map.putIfAbsent(day, () => []);
       map[day]!.add(_CalendarItem(
         path: m.posterPath!,
@@ -72,7 +94,7 @@ class _MediaCalendarPageState extends State<MediaCalendarPage> {
       if (b.coverPath == null || b.coverPath!.isEmpty) continue;
       final date = _dateMode == 1 ? b.startDate : b.createdAt;
       if (date == null) continue;
-      final day = DateTime(date.year, date.month, date.day);
+      final day = dayOnly(date);
       map.putIfAbsent(day, () => []);
       map[day]!.add(_CalendarItem(
         path: b.coverPath!,
@@ -88,16 +110,79 @@ class _MediaCalendarPageState extends State<MediaCalendarPage> {
         // 观看/阅读模式：按每条通关记录的日期各占一格
         for (final c in _completionMap[g.id] ?? const <GameCompletion>[]) {
           final date = c.completionDate;
-          final day = DateTime(date.year, date.month, date.day);
+          final day = dayOnly(date);
           map.putIfAbsent(day, () => []);
           map[day]!.add(_CalendarItem(path: g.coverPath!, title: g.title, type: 'game', data: g));
         }
       } else {
         final date = g.createdAt;
-        final day = DateTime(date.year, date.month, date.day);
+        final day = dayOnly(date);
         map.putIfAbsent(day, () => []);
         map[day]!.add(_CalendarItem(path: g.coverPath!, title: g.title, type: 'game', data: g));
       }
+    }
+
+    // 分集/章节/关卡：仅已完成的记录入历，同一部作品同一天只显示一格封面
+    final movieById = {for (final m in provider.movies) m.id: m};
+    final bookById = {for (final b in provider.books) b.id: b};
+    final gameById = {for (final g in provider.games) g.id: g};
+    // 去重键：日期 + 类型 + 父作品 id
+    final seenRecordKeys = <String>{};
+
+    void addRecord({
+      required DateTime? date,
+      required String cover,
+      required String title,
+      required String type,
+      required String parentId,
+      required dynamic parent,
+    }) {
+      if (date == null) return;
+      final day = dayOnly(date);
+      final key = '${day.toIso8601String()}|$type|$parentId';
+      if (!seenRecordKeys.add(key)) return;
+      map.putIfAbsent(day, () => []);
+      map[day]!.add(_CalendarItem(path: cover, title: title, type: type, data: parent));
+    }
+
+    for (final e in _episodes) {
+      if (!e.watched) continue;
+      final m = movieById[e.movieId];
+      if (m == null || m.isDeleted || m.posterPath == null || m.posterPath!.isEmpty) continue;
+      addRecord(
+        date: _dateMode == 1 ? e.watchDate : e.createdAt,
+        cover: m.posterPath!,
+        title: m.title,
+        type: 'movie',
+        parentId: m.id,
+        parent: m,
+      );
+    }
+    for (final c in _chapters) {
+      if (!c.read) continue;
+      final b = bookById[c.bookId];
+      if (b == null || b.isDeleted || b.coverPath == null || b.coverPath!.isEmpty) continue;
+      addRecord(
+        date: _dateMode == 1 ? c.readDate : c.createdAt,
+        cover: b.coverPath!,
+        title: b.title,
+        type: 'book',
+        parentId: b.id,
+        parent: b,
+      );
+    }
+    for (final l in _levels) {
+      if (!l.cleared) continue;
+      final g = gameById[l.gameId];
+      if (g == null || g.isDeleted || g.coverPath == null || g.coverPath!.isEmpty) continue;
+      addRecord(
+        date: _dateMode == 1 ? l.clearDate : l.createdAt,
+        cover: g.coverPath!,
+        title: g.title,
+        type: 'game',
+        parentId: g.id,
+        parent: g,
+      );
     }
 
     _dayItems = map;

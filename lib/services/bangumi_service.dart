@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'api_proxy_client.dart';
 
 /// Bangumi Token 测试结果
 enum BangumiTestStatus { ok, invalidToken, networkError }
@@ -27,13 +28,20 @@ class BangumiService {
   static const int pageSize = 30;
 
   String _token = '';
+  String _proxy = '';
   String? _userAgent;
+  http.Client _client = http.Client();
 
   bool get isConfigured => _token.isNotEmpty;
 
   /// 用已保存的凭证配置服务
-  void configure(String token) {
+  void configure(String token, {String proxy = ''}) {
     _token = token;
+    if (proxy != _proxy) {
+      _proxy = proxy;
+      _client.close();
+      _client = buildProxyClient(proxy);
+    }
   }
 
   /// Bangumi 要求非浏览器 API 使用者携带含开发者 ID 和应用名的 UA
@@ -53,9 +61,11 @@ class BangumiService {
   // ── 认证 ──────────────────────────────────────────────
 
   /// 测试 Token：GET /v0/me，200=有效，401=无效
-  static Future<BangumiTestStatus> testToken(String token) async {
+  static Future<BangumiTestStatus> testToken(String token,
+      {String proxy = ''}) async {
+    final client = buildProxyClient(proxy);
     try {
-      final resp = await http.get(Uri.parse('$_base/v0/me'), headers: {
+      final resp = await client.get(Uri.parse('$_base/v0/me'), headers: {
         'Authorization': 'Bearer $token',
         'User-Agent': await instance.userAgent(),
         'accept': 'application/json',
@@ -65,6 +75,8 @@ class BangumiService {
       return BangumiTestStatus.networkError;
     } catch (_) {
       return BangumiTestStatus.networkError;
+    } finally {
+      client.close();
     }
   }
 
@@ -83,13 +95,13 @@ class BangumiService {
       final uri = Uri.parse('$_base$path').replace(queryParameters: query);
       final headers = await _headers();
       if (method == 'POST') {
-        resp = await http
+        resp = await _client
             .post(uri,
                 headers: {...headers, 'Content-Type': 'application/json'},
                 body: json.encode(body))
             .timeout(const Duration(seconds: 15));
       } else {
-        resp = await http
+        resp = await _client
             .get(uri, headers: headers)
             .timeout(const Duration(seconds: 15));
       }
