@@ -195,7 +195,7 @@ const Map<String, String> enMovie = {
   '已出票': 'Issued',
   '时间': 'Time',
   '来自 MookNote': 'from MookNote',
-  '万达影城': 'Wanda Cinema',
+  '万大影城': 'Wanda Cinema',
   '3号厅': 'Hall 3',
   '喵眼电影': 'MookEye',
 

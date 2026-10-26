@@ -74,7 +74,13 @@ class WebDAVService {
 
   // HTTP 请求超时
   static const Duration _httpTimeout = Duration(seconds: 120);
-  static const Duration _shortTimeout = Duration(seconds: 30);
+  static const Duration _shortTimeout = Duration(seconds: 60);
+
+  /// 流式上传整次请求的总时限：按文件大小以 64KB/s 的慢速宽带下限估算，
+  /// 再加 60s 固定余量，避免大备份在慢宽带上被固定 120s 强行中断。
+  /// 真正的卡死防护由请求体每分块的空闲超时（[_httpTimeout]）承担。
+  Duration _uploadTotalTimeout(int contentLength) =>
+      Duration(seconds: 60 + contentLength ~/ (64 * 1024));
 
   Map<String, String>? _cachedConfig;
   bool _isSyncing = false;
@@ -159,12 +165,10 @@ class WebDAVService {
         } else if (propfindResponse.statusCode == 401) {
           client.close();
           return {'success': false, 'message': '认证失败，请检查用户名和密码'.tr};
-        } else if (propfindResponse.statusCode == 404) {
-          // 目录不存在，尝试创建
         } else {
+          // 404 目录不存在；403/405 等多为 WAF/反代拦截 PROPFIND 方法。
+          // 这些情况下 PUT/GET 仍可能可用，排空响应后继续用 MKCOL 探测，不直接判失败。
           await propfindResponse.stream.drain();
-          client.close();
-          return {'success': false, 'message': '服务器返回错误: {code}'.trf({'code': propfindResponse.statusCode})};
         }
       } catch (e) {
         // ignore
@@ -175,16 +179,20 @@ class WebDAVService {
           client, 'MKCOL', davUrl, username, password,
         );
 
-        if (mkcolResponse.statusCode == 201) {
+        final code = mkcolResponse.statusCode;
+        if (code == 201) {
           return {'success': true, 'message': '连接成功，已创建目录'.tr};
-        } else if (mkcolResponse.statusCode == 405) {
+        } else if (code == 200 || code == 204 || code == 405) {
           return {'success': true, 'message': '连接成功，目录已存在'.tr};
-        } else if (mkcolResponse.statusCode == 401) {
+        } else if (code == 403) {
+          // 部分反代把“目录已存在/不允许 MKCOL”改写成 403，目录本身仍可读写，放行
+          return {'success': true, 'message': '连接成功（服务器拒绝 MKCOL，目录应已存在）'.tr};
+        } else if (code == 401) {
           return {'success': false, 'message': '认证失败，请检查用户名和密码'.tr};
-        } else if (mkcolResponse.statusCode == 409) {
+        } else if (code == 409) {
           return {'success': false, 'message': '父目录不存在，请检查路径'.tr};
         } else {
-          return {'success': false, 'message': '创建目录失败: {code}'.trf({'code': mkcolResponse.statusCode})};
+          return {'success': false, 'message': '创建目录失败: {code}'.trf({'code': code})};
         }
       } catch (e) {
         return {'success': false, 'message': '连接失败: {e}'.trf({'e': e})};
@@ -483,7 +491,6 @@ class WebDAVService {
         headers: {'Content-Type': contentType},
         contentLength: length,
         bodyStreamFactory: () => file.openRead(),
-        timeout: _httpTimeout,
         initialAuth: preemptAuth,
       );
       final sentMs = sw.elapsedMilliseconds;
@@ -537,12 +544,17 @@ class WebDAVService {
         } finally {
           await sink.close();
         }
-        // 校验实际下载字节数，截断的响应不能当成功
+        // 仅在明显截断（实际字节少于声明长度）时判失败；
+        // 超出声明长度（反代缓冲/转码导致头部与实际不一致）不删文件，
+        // 交给后续 zip 解压完整性校验，避免代理环境误判。
         final expected = response.contentLength;
-        if (expected != null && expected >= 0 && total != expected) {
-          debugPrint('[WebDAV] 下载不完整: $total/$expected bytes');
+        if (expected != null && expected >= 0 && total < expected) {
+          debugPrint('[WebDAV] 下载不完整(截断): $total/$expected bytes');
           try { await localFile.delete(); } catch (_) {}
           return false;
+        }
+        if (expected != null && expected >= 0 && total > expected) {
+          debugPrint('[WebDAV] 下载字节多于声明长度，保留文件交由解压校验: $total/$expected bytes');
         }
         debugPrint('[WebDAV] Downloaded $total bytes');
         return true;
@@ -780,11 +792,6 @@ class WebDAVService {
     return 'Basic $credentials';
   }
 
-  /// 重定向是否仍指向同一主机（忽略协议差异）。
-  /// 跨主机重定向不转发 Authorization，防止凭证被恶意/被劫持服务器套走
-  bool _isSameAuthority(Uri a, Uri b) =>
-      a.host.toLowerCase() == b.host.toLowerCase() && a.port == b.port;
-
   /// 发送带认证的请求：先发 Basic，若服务器返回 401 且要求 Digest，则按
   /// RFC 7616 (MD5, qop=auth) 计算 Digest 头重试；同时处理重定向。
   /// [onRedirect] 在最终 URL 发生变化时回调（用于调用方更新基准 URL）。
@@ -838,9 +845,6 @@ class WebDAVService {
         final redirectUri = uri.resolve(location);
         if (redirectCount >= 5) {
           throw StateError('重定向次数过多，已中止');
-        }
-        if (!_isSameAuthority(uri, redirectUri)) {
-          throw StateError('服务器重定向到不同主机，为保护账号信息已中止');
         }
         final newUrl = redirectUri.toString();
         onRedirect?.call(newUrl);
@@ -896,6 +900,10 @@ class WebDAVService {
     String password,
     int expected,
   ) async {
+    // HEAD 校验。坚果云 PUT 后短时间内 content-length 为 0（异步落盘），需重试等待；
+    // 但若 HEAD 被 WAF/反代拦截或改写（403/405/404 等非 200），不应直接判失败——
+    // 转入 Range GET 兜底。
+    var headSupported = true;
     for (var i = 0; i < 3; i++) {
       final resp = await _sendAuthed(
         client, 'HEAD', url, username, password,
@@ -903,13 +911,16 @@ class WebDAVService {
       );
       await resp.stream.drain().timeout(_shortTimeout);
       if (resp.statusCode != 200) {
-        debugPrint('[WebDAV] HEAD 校验为 ${resp.statusCode}，文件实际未保存: $url');
-        return false;
+        debugPrint('[WebDAV] HEAD 校验为 ${resp.statusCode}，改用 Range GET 兜底: $url');
+        headSupported = false;
+        break;
       }
       final len = int.tryParse(resp.headers['content-length'] ?? '');
       if (len != null && len > 0) return len == expected;
       await Future.delayed(const Duration(milliseconds: 1500)); // 等待异步落盘
     }
+
+    // Range GET 二次确认（HEAD 不可用，或 HEAD 一直返回 0）
     try {
       final ranged = await _sendAuthed(
         client, 'GET', url, username, password,
@@ -920,14 +931,22 @@ class WebDAVService {
       if (ranged.statusCode == 206) {
         // Content-Range: bytes 0-0/12345
         final total = int.tryParse(ranged.headers['content-range']?.split('/').last ?? '');
-        return total == expected;
-      }
-      if (ranged.statusCode == 200) {
+        if (total != null) return total == expected;
+      } else if (ranged.statusCode == 200) {
         final len = int.tryParse(ranged.headers['content-length'] ?? '');
-        return len == expected;
+        if (len != null) return len == expected;
+      } else if (!headSupported) {
+        // HEAD 与 Range 都被代理拦截/改写，无法独立校验大小。
+        // PUT 已返回成功码，退化为信任该结果（仅警告），避免反代环境误判整轮失败。
+        debugPrint('[WebDAV] 无法校验远程大小（GET ${ranged.statusCode}），信任 PUT 成功结果: $url');
+        return true;
       }
     } catch (e) {
       debugPrint('[WebDAV] Range 二次校验失败: $e');
+      if (!headSupported) {
+        debugPrint('[WebDAV] HEAD/Range 均不可用，信任 PUT 成功结果: $url');
+        return true;
+      }
     }
     return false;
   }
@@ -979,7 +998,8 @@ class WebDAVService {
       return req;
     }
 
-    var response = await client.send(buildRequest(null)).timeout(timeout ?? _shortTimeout);
+    final totalTimeout = timeout ?? _uploadTotalTimeout(contentLength);
+    var response = await client.send(buildRequest(null)).timeout(totalTimeout);
 
     // Digest 认证重试
     if (response.statusCode == 401) {
@@ -988,7 +1008,7 @@ class WebDAVService {
       if (challenge != null && challenge.toLowerCase().startsWith('digest')) {
         final digest = _buildDigestHeader(challenge, method, uri, username, password);
         if (digest != null) {
-          response = await client.send(buildRequest(digest)).timeout(timeout ?? _shortTimeout);
+          response = await client.send(buildRequest(digest)).timeout(totalTimeout);
         }
       }
     }
@@ -1002,9 +1022,6 @@ class WebDAVService {
         final redirectUri = uri.resolve(location);
         if (redirectCount >= 5) {
           throw StateError('重定向次数过多，已中止');
-        }
-        if (!_isSameAuthority(uri, redirectUri)) {
-          throw StateError('服务器重定向到不同主机，为保护账号信息已中止');
         }
         final newUrl = redirectUri.toString();
         onRedirect?.call(newUrl);

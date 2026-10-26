@@ -99,8 +99,17 @@ class IncRemote {
       return [];
     }
     if (resp.statusCode != 207) {
-      debugPrint('[Inc2] PROPFIND $url -> ${resp.statusCode}');
-      return null;
+      // 部分 WAF/反代会拒绝带 ?_ts= 查询串的 PROPFIND，去掉查询串原样重试一次
+      final retry = await _dav.requestBytes(
+        method: 'PROPFIND',
+        url: url,
+        headers: {'Depth': '1'},
+      );
+      if (retry.statusCode != 207) {
+        debugPrint('[Inc2] PROPFIND $url -> ${resp.statusCode} / 重试 ${retry.statusCode}');
+        return null;
+      }
+      resp = retry;
     }
     final body = utf8.decode(resp.body);
     final hrefRegExp = RegExp(r'<(?:\w+:)?href[^>]*>([^<]+)</(?:\w+:)?href>', caseSensitive: false);

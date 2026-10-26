@@ -47,7 +47,7 @@ class _MovieSharePageState extends State<MovieSharePage> {
     final issueStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     final codeStr = 'MK${now.millisecondsSinceEpoch.toString().substring(1)}';
 
-    _cinemaCtrl = TextEditingController(text: '万达影城'.tr);
+    _cinemaCtrl = TextEditingController(text: '万大影城'.tr);
     _hallCtrl = TextEditingController(text: '3号厅'.tr);
     _seatRowCtrl = TextEditingController(text: '8');
     _seatNumCtrl = TextEditingController(text: '12');
