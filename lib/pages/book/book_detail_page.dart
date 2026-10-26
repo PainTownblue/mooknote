@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import '../../utils/theme/app_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../widgets/fade_in_local_image.dart';
@@ -1082,19 +1083,19 @@ class _BookDetailPageState extends State<BookDetailPage> {
   }
 
   Widget _statusChip(String status) {
-    final colors = Theme.of(context).colorScheme;
-    final (label, bg, fg) = switch (status) {
-      'read' => ('已读', colors.primary, colors.onPrimary),
-      'reading' => ('在读', colors.outlineVariant, colors.onSurface.withValues(alpha: 0.6)),
-      'want_to_read' => ('想读', colors.surfaceContainerHighest, colors.onSurface.withValues(alpha: 0.4)),
-      'abandoned' => ('弃读', colors.error.withValues(alpha: 0.15), colors.error),
-      _ => ('', colors.surfaceContainerHighest, colors.onSurface.withValues(alpha: 0.3)),
+    final label = switch (status) {
+      'read' => '已读',
+      'reading' => '在读',
+      'want_to_read' => '想读',
+      'abandoned' => '弃读',
+      _ => '',
     };
     if (label.isEmpty) return const SizedBox.shrink();
+    final c = AppTheme.statusChipColors(Theme.of(context).colorScheme, status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
-      child: Text(label.tr, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: fg)),
+      decoration: BoxDecoration(color: c.bg, borderRadius: BorderRadius.circular(12)),
+      child: Text(label.tr, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.fg)),
     );
   }
 

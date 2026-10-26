@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../utils/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
@@ -731,18 +732,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
   Widget _buildLocalStatus(ColorScheme colors) {
     final status = _localBook!.status;
     final label = _statusLabel(status);
-    Color dotColor;
-    switch (status) {
-      case 'read':
-        dotColor = colors.primary;
-        break;
-      case 'reading':
-        dotColor = const Color(0xFF666666);
-        break;
-      default:
-        dotColor = const Color(0xFF999999);
-        break;
-    }
+    final dotColor = AppTheme.statusDotColor(colors, status);
     return Row(children: [
       Container(
           width: 6,

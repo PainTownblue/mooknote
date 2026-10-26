@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import '../../providers/app_provider.dart';
 import '../../models/data_models.dart';
@@ -158,15 +159,8 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SingleTick
     }
   }
 
-  static Color _statusColor(String status) {
-    return switch (status) {
-      'watched' || 'read' || 'completed' => const Color(0xFF4CAF50),
-      'watching' || 'reading' || 'playing' => const Color(0xFF42A5F5),
-      'want_to_watch' || 'want_to_read' || 'want_to_play' => const Color(0xFFFF9800),
-      'abandoned' => const Color(0xFFEF5350),
-      _ => Colors.grey,
-    };
-  }
+  static Color _statusColor(ColorScheme colors, String status) =>
+      AppTheme.statusOverlayColors(colors, status).bg;
 
   bool _isDone(String status) =>
       status == 'watched' || status == 'read' || status == 'completed';
@@ -584,7 +578,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SingleTick
   Widget _buildItem(BuildContext context, _ResolvedItem item, int index, AppProvider provider) {
     final colors = Theme.of(context).colorScheme;
     final type = item.type;
-    final statusColor = _statusColor(item.status);
+    final statusColor = _statusColor(colors, item.status);
     final statusLabel = _statusLabel(type, item.status);
     final itemId = item.playlistItem.id;
 

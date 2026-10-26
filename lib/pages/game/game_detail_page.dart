@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../../utils/theme/app_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../widgets/fade_in_local_image.dart';
@@ -937,18 +938,19 @@ class _GameDetailPageState extends State<GameDetailPage> {
   }
 
   Widget _buildOverlayStatusChip(String status) {
-    final (label, bg) = switch (status) {
-      'completed' => ('已通关', const Color(0xFF1A1A1A)),
-      'playing' => ('在玩', const Color(0xFF666666)),
-      'want_to_play' => ('想玩', const Color(0xFF999999)),
-      'abandoned' => ('弃游', const Color(0xFF8B4513)),
-      _ => ('', const Color(0xFF999999)),
+    final label = switch (status) {
+      'completed' => '已通关',
+      'playing' => '在玩',
+      'want_to_play' => '想玩',
+      'abandoned' => '弃游',
+      _ => '',
     };
     if (label.isEmpty) return const SizedBox.shrink();
+    final c = AppTheme.statusOverlayColors(Theme.of(context).colorScheme, status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
-      child: Text(label.tr, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
+      decoration: BoxDecoration(color: c.bg, borderRadius: BorderRadius.circular(12)),
+      child: Text(label.tr, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.fg)),
     );
   }
 

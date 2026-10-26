@@ -402,6 +402,30 @@ class WebDAVService {
     return '$baseUrl${_normalizePath(config['path']!)}';
   }
 
+  /// 用一个全新 client 执行 [action]，并在每次结束后关闭。
+  /// 跨主机反代（WAF A→B）+ 认证重定向下，IOClient 偶发在一次请求的 digest/重定向
+  /// 重试过程中被提前拆毁，后续复用会抛 "Client is already closed"。
+  /// 命中该错误时用全新 client 整体重试一次。
+  Future<T> _withFreshClient<T>(Future<T> Function(http.Client client) action) async {
+    Object? lastError;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final client = http.Client();
+      try {
+        return await action(client);
+      } catch (e) {
+        lastError = e;
+        final closed = e is http.ClientException &&
+            (e.message.contains('Client is already closed') ||
+                e.message.contains('already closed'));
+        if (!closed || attempt == 1) rethrow;
+        debugPrint('[WebDAV] client 已关闭，使用新 client 重试');
+      } finally {
+        client.close();
+      }
+    }
+    throw lastError!;
+  }
+
   /// 带认证的通用请求（已读取完整响应体）
   Future<AuthedHttpResponse> requestBytes({
     required String method,
@@ -412,11 +436,12 @@ class WebDAVService {
   }) async {
     final config = await getConfig();
     if (config == null) throw StateError('未配置 WebDAV'.tr);
+    final username = config['username']!;
+    final password = config['password']!;
 
-    final client = http.Client();
-    try {
+    return _withFreshClient((client) async {
       final response = await _sendAuthed(
-        client, method, url, config['username']!, config['password']!,
+        client, method, url, username, password,
         headers: headers, bodyBytes: bodyBytes, timeout: timeout,
       );
       final body = await response.stream.toBytes();
@@ -425,9 +450,7 @@ class WebDAVService {
         headers: response.headers,
         body: body,
       );
-    } finally {
-      client.close();
-    }
+    });
   }
 
   /// PUT 上传字节并做 HEAD 存在性 + 大小校验（防止假成功）
@@ -441,28 +464,27 @@ class WebDAVService {
     final username = config['username']!;
     final password = config['password']!;
 
-    final client = http.Client();
     try {
-      final response = await _sendAuthed(
-        client, 'PUT', url, username, password,
-        headers: {'Content-Type': contentType},
-        bodyBytes: bytes,
-        timeout: _httpTimeout,
-      );
-      await response.stream.drain().timeout(_httpTimeout);
+      return await _withFreshClient((client) async {
+        final response = await _sendAuthed(
+          client, 'PUT', url, username, password,
+          headers: {'Content-Type': contentType},
+          bodyBytes: bytes,
+          timeout: _httpTimeout,
+        );
+        await response.stream.drain().timeout(_httpTimeout);
 
-      debugPrint('[WebDAV] PUT $url -> ${response.statusCode}');
-      final putOk = response.statusCode == 200 ||
-          response.statusCode == 201 ||
-          response.statusCode == 204;
-      if (!putOk) return false;
+        debugPrint('[WebDAV] PUT $url -> ${response.statusCode}');
+        final putOk = response.statusCode == 200 ||
+            response.statusCode == 201 ||
+            response.statusCode == 204;
+        if (!putOk) return false;
 
-      return _verifyRemoteSize(client, url, username, password, bytes.length);
+        return _verifyRemoteSize(client, url, username, password, bytes.length);
+      });
     } catch (e) {
       debugPrint('[WebDAV] putVerified error: $e');
       return false;
-    } finally {
-      client.close();
     }
   }
 

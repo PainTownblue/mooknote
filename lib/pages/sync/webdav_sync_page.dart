@@ -25,6 +25,7 @@ class _WebDAVSyncPageState extends State<WebDAVSyncPage> {
 
   bool _isLoading = false;
   bool _isConfigured = false;
+  bool _configExpanded = true;
   bool _obscurePassword = true;
   SyncDirection _syncDirection = SyncDirection.upload;
   String _syncStep = '';
@@ -75,6 +76,7 @@ class _WebDAVSyncPageState extends State<WebDAVSyncPage> {
         _passwordController.text = config['password'] ?? '';
         _pathController.text = config['path'] ?? '/mooknote';
         _isConfigured = true;
+        _configExpanded = false;
       });
       _loadRemoteInfo();
       _loadIncInfo();
@@ -151,7 +153,10 @@ class _WebDAVSyncPageState extends State<WebDAVSyncPage> {
           path: path,
         );
         if (!mounted) return;
-        setState(() => _isConfigured = true);
+        setState(() {
+          _isConfigured = true;
+          _configExpanded = false;
+        });
         // 保存成功后立即加载远程备份信息
         _loadRemoteInfo();
         ToastUtil.show(context, result['message'] ?? '连接成功，配置已保存'.tr);
@@ -690,6 +695,7 @@ class _WebDAVSyncPageState extends State<WebDAVSyncPage> {
         _passwordController.clear();
         _pathController.text = '/mooknote';
         _isConfigured = false;
+        _configExpanded = true;
       });
       if (mounted) ToastUtil.show(context, '配置已清除'.tr);
     }
@@ -730,62 +736,74 @@ class _WebDAVSyncPageState extends State<WebDAVSyncPage> {
                 const SizedBox(height: 24),
               ],
 
-              // 服务器配置
-              _buildSectionLabel(colors, '服务器配置'.tr),
-                const SizedBox(height: 12),
-                _buildInput(
-                  colors: colors,
-                  controller: _urlController,
-                  hint: '服务器地址，如 https://dav.example.com'.tr,
-                  icon: Icons.link,
-                ),
-                const SizedBox(height: 8),
-                _buildInput(
-                  colors: colors,
-                  controller: _usernameController,
-                  hint: '用户名'.tr,
-                  icon: Icons.person_outline,
-                ),
-                const SizedBox(height: 8),
-                _buildInput(
-                  colors: colors,
-                  controller: _passwordController,
-                  hint: '密码'.tr,
-                  icon: Icons.lock_outline,
-                  obscure: _obscurePassword,
-                  suffix: GestureDetector(
-                    onTap: () => setState(() => _obscurePassword = !_obscurePassword),
-                    child: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                        size: 20,
-                        color: colors.onSurface.withValues(alpha: 0.3)),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _buildInput(
-                  colors: colors,
-                  controller: _pathController,
-                  hint: '同步路径，如 /mooknote'.tr,
-                  icon: Icons.folder_outlined,
-                ),
-                const SizedBox(height: 16),
+              // 服务器配置（已配置并连接成功时自动折叠）
+              _buildConfigHeader(colors),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                alignment: Alignment.topCenter,
+                curve: Curves.easeInOut,
+                child: (!_isConfigured || _configExpanded)
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 12),
+                          _buildInput(
+                            colors: colors,
+                            controller: _urlController,
+                            hint: '服务器地址，如 https://dav.example.com'.tr,
+                            icon: Icons.link,
+                          ),
+                          const SizedBox(height: 8),
+                          _buildInput(
+                            colors: colors,
+                            controller: _usernameController,
+                            hint: '用户名'.tr,
+                            icon: Icons.person_outline,
+                          ),
+                          const SizedBox(height: 8),
+                          _buildInput(
+                            colors: colors,
+                            controller: _passwordController,
+                            hint: '密码'.tr,
+                            icon: Icons.lock_outline,
+                            obscure: _obscurePassword,
+                            suffix: GestureDetector(
+                              onTap: () => setState(() => _obscurePassword = !_obscurePassword),
+                              child: Icon(
+                                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                  size: 20,
+                                  color: colors.onSurface.withValues(alpha: 0.3)),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildInput(
+                            colors: colors,
+                            controller: _pathController,
+                            hint: '同步路径，如 /mooknote'.tr,
+                            icon: Icons.folder_outlined,
+                          ),
+                          const SizedBox(height: 16),
 
-                // 测试并保存
-                _buildBtn(colors, '测试并保存'.tr, onTap: _isLoading ? null : _saveConfig),
-                if (_isConfigured) ...[
-                  const SizedBox(height: 8),
-                  Center(
-                    child: GestureDetector(
-                      onTap: _isLoading ? null : _clearConfig,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Text('清除配置'.tr,
-                            style: TextStyle(fontSize: 13, color: colors.onSurface.withValues(alpha: 0.35))),
-                      ),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 28),
+                          // 测试并保存
+                          _buildBtn(colors, '测试并保存'.tr, onTap: _isLoading ? null : _saveConfig),
+                          if (_isConfigured) ...[
+                            const SizedBox(height: 8),
+                            Center(
+                              child: GestureDetector(
+                                onTap: _isLoading ? null : _clearConfig,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 4),
+                                  child: Text('清除配置'.tr,
+                                      style: TextStyle(fontSize: 13, color: colors.onSurface.withValues(alpha: 0.35))),
+                                ),
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 28),
+                        ],
+                      )
+                    : const SizedBox(width: double.infinity),
+              ),
 
               const SizedBox(height: 24),
               _buildTips(colors),
@@ -1105,6 +1123,28 @@ class _WebDAVSyncPageState extends State<WebDAVSyncPage> {
           ),
           Text('已连接'.tr,
               style: TextStyle(fontSize: 12, color: colors.onSurface.withValues(alpha: 0.4))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConfigHeader(ColorScheme colors) {
+    final collapsible = _isConfigured;
+    final label = _buildSectionLabel(colors, '服务器配置'.tr);
+    if (!collapsible) return label;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _configExpanded = !_configExpanded),
+      child: Row(
+        children: [
+          label,
+          const Spacer(),
+          AnimatedRotation(
+            turns: _configExpanded ? 0.5 : 0,
+            duration: const Duration(milliseconds: 220),
+            child: Icon(Icons.expand_more,
+                size: 20, color: colors.onSurface.withValues(alpha: 0.4)),
+          ),
         ],
       ),
     );

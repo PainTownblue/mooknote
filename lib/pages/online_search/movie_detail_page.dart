@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../utils/theme/app_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:media_kit/media_kit.dart';
@@ -54,6 +55,7 @@ class _MovieDetailPageState extends State<MovieDetailPage>
   VideoController? _videoController;
   bool _playerCreating = false;
   bool _isFullscreen = false;
+  bool _enteredFullscreen = false;
 
   // 播放器实时状态
   Duration _position = Duration.zero;
@@ -84,7 +86,14 @@ class _MovieDetailPageState extends State<MovieDetailPage>
     _playerSubs.clear();
     _player?.dispose();
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    // 仅当本页进过全屏、改动过系统 UI 模式时才还原；
+    // 普通浏览不触碰全局 SystemUiMode，避免返回后其他页面因 inset 变化而下沉
+    if (_enteredFullscreen) {
+      SystemChrome.setEnabledSystemUIMode(
+        SystemUiMode.manual,
+        overlays: SystemUiOverlay.values,
+      );
+    }
     super.dispose();
   }
 
@@ -424,6 +433,7 @@ class _MovieDetailPageState extends State<MovieDetailPage>
       DeviceOrientation.landscapeRight,
     ]);
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    _enteredFullscreen = true;
     setState(() {
       _isFullscreen = true;
     });
@@ -431,7 +441,12 @@ class _MovieDetailPageState extends State<MovieDetailPage>
 
   Future<void> _exitFullscreen() async {
     await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    // 还原到 App 默认：状态栏 + 导航栏常显的 manual 模式，
+    // 不要切 edgeToEdge（会改变全局 MediaQuery inset，导致返回后其他页面下沉重排）
+    await SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.manual,
+      overlays: SystemUiOverlay.values,
+    );
     setState(() {
       _isFullscreen = false;
     });
@@ -1321,18 +1336,7 @@ class _MovieDetailPageState extends State<MovieDetailPage>
   Widget _buildLocalStatus(ColorScheme colors) {
     final status = _localMovie!.status;
     final label = _statusLabel(status);
-    Color dotColor;
-    switch (status) {
-      case 'watched':
-        dotColor = colors.primary;
-        break;
-      case 'watching':
-        dotColor = const Color(0xFF666666);
-        break;
-      default:
-        dotColor = const Color(0xFF999999);
-        break;
-    }
+    final dotColor = AppTheme.statusDotColor(colors, status);
     return Row(children: [
       Container(
           width: 6,

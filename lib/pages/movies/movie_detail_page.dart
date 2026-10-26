@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import '../../utils/theme/app_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../widgets/fade_in_local_image.dart';
@@ -834,13 +835,17 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   }
 
   Widget _statusChip(String status) {
-    final (label, bg, fg) = switch (status) {
-      'watched' => ('已看'.tr, const Color(0xFF1A1A1A), Colors.white),
-      'watching' => ('在看'.tr, const Color(0xFF666666), Colors.white),
-      'want_to_watch' => ('想看'.tr, const Color(0xFF999999), Colors.white),
-      _ => ('', const Color(0xFF999999), Colors.white),
+    final label = switch (status) {
+      'watched' => '已看'.tr,
+      'watching' => '在看'.tr,
+      'want_to_watch' => '想看'.tr,
+      _ => '',
     };
     if (label.isEmpty) return const SizedBox.shrink();
+    final colors = Theme.of(context).colorScheme;
+    final c = AppTheme.statusOverlayColors(colors, status);
+    final bg = c.bg;
+    final fg = c.fg;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),

@@ -445,35 +445,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 sel.colorSchemeIndex,
                 monetColor: monetColor,
               );
-              ThemeData dark;
+              final ThemeData dark;
               if (isFrosted) {
                 dark = AppTheme.frostedTheme;
-              } else if (sel.colorSchemeIndex == -1 && monetColor != null) {
-                final scheme = ColorScheme.fromSeed(
-                  seedColor: monetColor,
-                  brightness: Brightness.dark,
-                );
-                dark = ThemeData(
-                  useMaterial3: true,
-                  brightness: Brightness.dark,
-                  colorScheme: scheme,
-                  scaffoldBackgroundColor: scheme.surface,
-                  appBarTheme: AppBarTheme(
-                    backgroundColor: scheme.surface,
-                    foregroundColor: scheme.onSurface,
-                    elevation: 0,
-                    scrolledUnderElevation: 0,
-                  ),
-                  cardTheme: CardThemeData(
-                    color: scheme.surfaceContainerHighest,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                );
               } else {
-                dark = AppTheme.darkTheme;
+                dark = AppTheme.getDarkTheme(
+                  sel.colorSchemeIndex,
+                  monetColor: monetColor,
+                );
               }
 
               final child = MaterialApp(
