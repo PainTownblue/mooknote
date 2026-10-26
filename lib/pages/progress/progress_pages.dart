@@ -346,9 +346,30 @@ class _ProgressEntryCardState<T> extends State<ProgressEntryCard<T>> {
     final titleColor = frosted ? Colors.white : colors.onSurface;
     final subColor =
         frosted ? Colors.white.withValues(alpha: 0.5) : colors.onSurface.withValues(alpha: 0.4);
+    final iconColor = frosted
+        ? Colors.white.withValues(alpha: 0.7)
+        : colors.onSurface.withValues(alpha: 0.6);
+    final chevronColor = frosted
+        ? Colors.white.withValues(alpha: 0.3)
+        : colors.onSurface.withValues(alpha: 0.25);
+
+    Widget iconBox = frosted
+        ? Icon(widget.icon, size: 20, color: iconColor)
+        : Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colors.outlineVariant, width: 0.5),
+            ),
+            child: Icon(widget.icon, size: 20, color: iconColor),
+          );
 
     Widget content = Padding(
-      padding: const EdgeInsets.all(16),
+      padding: frosted
+          ? const EdgeInsets.symmetric(horizontal: 16, vertical: 14)
+          : const EdgeInsets.all(16),
       child: FutureBuilder<List<T>>(
         future: _future,
         builder: (context, snap) {
@@ -359,67 +380,63 @@ class _ProgressEntryCardState<T> extends State<ProgressEntryCard<T>> {
           final avg = rated.isEmpty
               ? null
               : rated.reduce((a, b) => a + b) / rated.length;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          return Row(
             children: [
-              Row(
-                children: [
-                  Icon(widget.icon,
-                      size: 20,
-                      color: frosted
-                          ? Colors.white.withValues(alpha: 0.7)
-                          : colors.onSurface.withValues(alpha: 0.6)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(widget.config.listTitle.tr,
-                        style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: titleColor)),
-                  ),
-                  if (total > 0)
-                    Text('$done / $total',
-                        style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: frosted ? Colors.white : colors.primary)),
-                  Icon(Icons.chevron_right,
-                      size: 20,
-                      color: frosted
-                          ? Colors.white.withValues(alpha: 0.3)
-                          : colors.onSurface.withValues(alpha: 0.25)),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: total == 0 ? 0 : done / total,
-                        minHeight: 5,
-                        backgroundColor: frosted
-                            ? Colors.white.withValues(alpha: 0.15)
-                            : colors.outlineVariant.withValues(alpha: 0.4),
-                      ),
+              iconBox,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(widget.config.listTitle.tr,
+                              style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: titleColor)),
+                        ),
+                        if (total > 0)
+                          Text('$done / $total',
+                              style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: frosted ? Colors.white : colors.primary)),
+                      ],
                     ),
-                  ),
-                  if (avg != null) ...[
-                    const SizedBox(width: 10),
-                    const Icon(Icons.star,
-                        size: 13, color: Color(0xFFFFB800)),
-                    const SizedBox(width: 2),
-                    Text(avg.toStringAsFixed(1),
-                        style: TextStyle(fontSize: 12, color: subColor)),
+                    const SizedBox(height: 6),
+                    if (total == 0)
+                      Text('暂无记录'.tr, style: TextStyle(fontSize: 13, color: subColor))
+                    else
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: done / total,
+                                minHeight: 5,
+                                backgroundColor: frosted
+                                    ? Colors.white.withValues(alpha: 0.15)
+                                    : colors.outlineVariant.withValues(alpha: 0.4),
+                              ),
+                            ),
+                          ),
+                          if (avg != null) ...[
+                            const SizedBox(width: 10),
+                            const Icon(Icons.star, size: 13, color: Color(0xFFFFB800)),
+                            const SizedBox(width: 2),
+                            Text(avg.toStringAsFixed(1),
+                                style: TextStyle(fontSize: 12, color: subColor)),
+                          ],
+                        ],
+                      ),
                   ],
-                  if (total == 0) ...[
-                    const SizedBox(width: 10),
-                    Text('暂无记录'.tr,
-                        style: TextStyle(fontSize: 12, color: subColor)),
-                  ],
-                ],
+                ),
               ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, size: 20, color: chevronColor),
             ],
           );
         },
@@ -489,6 +506,8 @@ class ProgressListPage<T> extends StatefulWidget {
 class _ProgressListPageState<T> extends State<ProgressListPage<T>> {
   List<T> _items = [];
   bool _loading = true;
+  bool _selecting = false;
+  final Set<String> _selectedIds = {};
 
   ProgressConfig<T> get _cfg => widget.config;
 
@@ -588,31 +607,68 @@ class _ProgressListPageState<T> extends State<ProgressListPage<T>> {
     await _load();
   }
 
-  Future<void> _confirmDelete(T item) async {
+  void _enterSelect(T item) {
+    setState(() {
+      _selecting = true;
+      _selectedIds.add(_cfg.idOf(item));
+    });
+  }
+
+  void _toggleSelect(T item) {
+    setState(() {
+      final id = _cfg.idOf(item);
+      if (!_selectedIds.remove(id)) _selectedIds.add(id);
+    });
+  }
+
+  void _exitSelect() {
+    setState(() {
+      _selecting = false;
+      _selectedIds.clear();
+    });
+  }
+
+  Future<void> _confirmDeleteSelected() async {
+    final n = _selectedIds.length;
+    if (n == 0) return;
+    final colors = Theme.of(context).colorScheme;
     appDialog(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: Text('确认删除'.tr),
-        content: Text('确定要删除{n}吗？此操作不可恢复。'.trf(
-            {'n': _cfg.itemName(_cfg.seqOf(item))})),
+        backgroundColor: colors.surface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Text('确认删除'.tr,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: colors.onSurface)),
+        content: Text(
+            '确定要删除选中的 {n} 条记录吗？此操作不可恢复。'.trf({'n': '$n'}),
+            style: TextStyle(fontSize: 14, color: colors.onSurface.withValues(alpha: 0.6), height: 1.5)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx),
-            child: Text('取消'.tr),
+            child: Text('取消'.tr, style: TextStyle(color: colors.onSurface.withValues(alpha: 0.6))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(dialogCtx).colorScheme.error,
-              foregroundColor: Theme.of(dialogCtx).colorScheme.onError,
+              backgroundColor: colors.error,
+              foregroundColor: colors.onError,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () async {
               Navigator.pop(dialogCtx);
-              await _cfg.remove(context.read<AppProvider>(), _cfg.idOf(item));
+              final provider = context.read<AppProvider>();
+              final ids = _selectedIds.toList();
+              _exitSelect();
+              for (final id in ids) {
+                await _cfg.remove(provider, id);
+              }
               await _load();
             },
             child: Text('删除'.tr),
           ),
         ],
+        actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
     );
   }
@@ -620,21 +676,58 @@ class _ProgressListPageState<T> extends State<ProgressListPage<T>> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_cfg.listTitle.tr),
-        actions: [
-          IconButton(
-            tooltip: '批量生成'.tr,
-            onPressed: _batchGenerate,
-            icon: const Icon(Icons.playlist_add_outlined),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _openEdit(),
-        child: const Icon(Icons.add),
-      ),
+    return PopScope(
+      canPop: !_selecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _exitSelect();
+      },
+      child: Scaffold(
+      appBar: _selecting
+          ? AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: _exitSelect,
+              ),
+              title: Text('已选 {n} 项'.trf({'n': '${_selectedIds.length}'})),
+              actions: [
+                IconButton(
+                  tooltip: '全选'.tr,
+                  icon: Icon(_selectedIds.length == _items.length
+                      ? Icons.deselect
+                      : Icons.select_all),
+                  onPressed: () => setState(() {
+                    if (_selectedIds.length == _items.length) {
+                      _selectedIds.clear();
+                    } else {
+                      _selectedIds.addAll(_items.map(_cfg.idOf));
+                    }
+                  }),
+                ),
+                IconButton(
+                  tooltip: '删除'.tr,
+                  icon: const Icon(Icons.delete_outline),
+                  color: colors.error,
+                  disabledColor: colors.onSurface.withValues(alpha: 0.25),
+                  onPressed: _selectedIds.isEmpty ? null : _confirmDeleteSelected,
+                ),
+              ],
+            )
+          : AppBar(
+              title: Text(_cfg.listTitle.tr),
+              actions: [
+                IconButton(
+                  tooltip: '批量生成'.tr,
+                  onPressed: _batchGenerate,
+                  icon: const Icon(Icons.playlist_add_outlined),
+                ),
+              ],
+            ),
+      floatingActionButton: _selecting
+          ? null
+          : FloatingActionButton(
+              onPressed: () => _openEdit(),
+              child: const Icon(Icons.add),
+            ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -657,6 +750,7 @@ class _ProgressListPageState<T> extends State<ProgressListPage<T>> {
                 ),
               ],
             ),
+      ),
     );
   }
 
@@ -746,27 +840,36 @@ class _ProgressListPageState<T> extends State<ProgressListPage<T>> {
     final review = _cfg.reviewOf(item);
     final images = _cfg.imagesOf(item);
     final done = _cfg.doneOf(item);
+    final selected = _selectedIds.contains(_cfg.idOf(item));
 
     return InkWell(
-      onTap: () => _openEdit(existing: item),
-      onLongPress: () => _confirmDelete(item),
+      onTap: () => _selecting
+          ? _toggleSelect(item)
+          : _openEdit(existing: item),
+      onLongPress: () => _selecting ? _toggleSelect(item) : _enterSelect(item),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: [
             SizedBox(
               width: 44,
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                onPressed: () => _toggleDone(item),
-                icon: Icon(
-                  done
-                      ? Icons.check_circle
-                      : Icons.radio_button_unchecked,
-                  color: done ? colors.primary : colors.outline,
-                  size: 26,
-                ),
-              ),
+              child: _selecting
+                  ? Icon(
+                      selected ? Icons.check_circle : Icons.radio_button_unchecked,
+                      color: selected ? colors.primary : colors.outline,
+                      size: 26,
+                    )
+                  : IconButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: () => _toggleDone(item),
+                      icon: Icon(
+                        done
+                            ? Icons.check_circle
+                            : Icons.radio_button_unchecked,
+                        color: done ? colors.primary : colors.outline,
+                        size: 26,
+                      ),
+                    ),
             ),
             Expanded(
               child: Column(

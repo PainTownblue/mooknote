@@ -24,10 +24,19 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SingleTick
   bool _loading = true;
   String _statusFilter = 'all'; // all / 具体状态 / none
   final Map<String, double> _slideOffsets = {};
-  double _dragStartX = 0;
-  double _dragStartOffset = 0;
-  bool _isHorizontalDrag = false;
   static const _actionWidth = 56.0;
+
+  void _closeAllSlides({String? exceptId}) {
+    final keys = _slideOffsets.keys
+        .where((id) => id != exceptId && (_slideOffsets[id] ?? 0) != 0)
+        .toList();
+    if (keys.isEmpty) return;
+    setState(() {
+      for (final id in keys) {
+        _slideOffsets[id] = 0.0;
+      }
+    });
+  }
 
   late final AnimationController _wallCtrl;
 
@@ -195,8 +204,11 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SingleTick
 
     final topPad = MediaQuery.of(context).padding.top + kToolbarHeight;
 
-    return SizedBox(
-      height: 330,
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: _closeAllSlides,
+      child: SizedBox(
+      height: 270,
       child: Stack(
         fit: StackFit.expand,
         clipBehavior: Clip.hardEdge,
@@ -273,6 +285,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SingleTick
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -372,7 +385,10 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SingleTick
     Widget chip(String? key, String label, int count) {
       final selected = _statusFilter == (key ?? 'all');
       return GestureDetector(
-        onTap: () => setState(() => _statusFilter = key ?? 'all'),
+        onTap: () {
+          _closeAllSlides();
+          setState(() => _statusFilter = key ?? 'all');
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
@@ -392,7 +408,10 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SingleTick
       );
     }
 
-    return Container(
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: _closeAllSlides,
+      child: Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
       child: SizedBox(
@@ -411,6 +430,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SingleTick
             ],
           ],
         ),
+      ),
       ),
     );
   }
@@ -499,12 +519,20 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SingleTick
         _buildHeader(context, playlist, resolved),
         if (resolved.isNotEmpty && playlist.type != 'all') _buildFilterChips(context, playlist, resolved),
         Expanded(
-          child: visible.isEmpty
-              ? Center(
-                  child: Text('该分类下暂无条目'.tr,
-                      style: TextStyle(fontSize: 13, color: colors.onSurface.withValues(alpha: 0.35))),
-                )
-              : ReorderableListView.builder(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: _closeAllSlides,
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (_) {
+                _closeAllSlides();
+                return false;
+              },
+              child: visible.isEmpty
+                  ? Center(
+                      child: Text('该分类下暂无条目'.tr,
+                          style: TextStyle(fontSize: 13, color: colors.onSurface.withValues(alpha: 0.35))),
+                    )
+                  : ReorderableListView.builder(
                   padding: const EdgeInsets.only(top: 12, bottom: 24),
                   itemCount: visible.length,
                   onReorder: (oldIndex, newIndex) {
@@ -546,6 +574,8 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SingleTick
                     return _buildItem(context, visible[index], index, provider);
                   },
                 ),
+            ),
+          ),
         ),
       ],
     );
@@ -599,33 +629,22 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SingleTick
             duration: const Duration(milliseconds: 150),
             curve: Curves.easeOut,
             transform: Matrix4.translationValues(_slideOffsets[itemId] ?? 0, 0, 0),
-            child: Listener(
+            child: GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onPointerDown: (event) {
-                _dragStartX = event.position.dx;
-                _dragStartOffset = _slideOffsets[itemId] ?? 0;
-                _isHorizontalDrag = false;
+              onHorizontalDragStart: (_) => _closeAllSlides(exceptId: itemId),
+              onHorizontalDragUpdate: (details) {
+                setState(() {
+                  _slideOffsets[itemId] =
+                      ((_slideOffsets[itemId] ?? 0) + details.delta.dx).clamp(-_actionWidth, 0.0);
+                });
               },
-              onPointerMove: (event) {
-                final dx = event.position.dx - _dragStartX;
-                if (!_isHorizontalDrag && dx.abs() > 10) {
-                  if (dx < 0 || _dragStartOffset < 0) {
-                    _isHorizontalDrag = true;
-                  }
-                }
-                if (_isHorizontalDrag) {
-                  setState(() {
-                    _slideOffsets[itemId] = (_dragStartOffset + dx).clamp(-_actionWidth, 0.0);
-                  });
-                }
-              },
-              onPointerUp: (_) {
-                if (_isHorizontalDrag) {
-                  final offset = _slideOffsets[itemId] ?? 0.0;
-                  final target = offset < -_actionWidth / 2 ? -_actionWidth : 0.0;
-                  setState(() => _slideOffsets[itemId] = target);
-                }
-                _isHorizontalDrag = false;
+              onHorizontalDragEnd: (details) {
+                final offset = _slideOffsets[itemId] ?? 0.0;
+                final velocity = details.primaryVelocity ?? 0;
+                final target = (velocity < -200 || offset < -_actionWidth / 2)
+                    ? -_actionWidth
+                    : 0.0;
+                setState(() => _slideOffsets[itemId] = target);
               },
               child: ReorderableDelayedDragStartListener(
                 index: index,
@@ -635,6 +654,10 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> with SingleTick
                     onTap: () {
                       if ((_slideOffsets[itemId] ?? 0) < 0) {
                         setState(() => _slideOffsets[itemId] = 0.0);
+                        return;
+                      }
+                      if (_slideOffsets.values.any((v) => v < 0)) {
+                        _closeAllSlides();
                         return;
                       }
                       final page = switch (type) {
