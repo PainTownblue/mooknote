@@ -69,7 +69,7 @@ class CustomModuleDesignDao {
   /// 切换激活设计：清掉同模块其他设计的激活标记，并同步模块表 active_design_id
   Future<void> setActiveDesign(String moduleId, String designId) => _wrap('setActiveDesign', () async {
     final db = await _dbHelper.database;
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     await db.transaction((txn) async {
       await txn.update('custom_module_designs', {'is_active': 0, 'updated_at': now},
           where: 'module_id = ?', whereArgs: [moduleId]);
@@ -83,7 +83,7 @@ class CustomModuleDesignDao {
   /// 软删除设计；若删的是激活设计，清除模块表 active_design_id
   Future<void> deleteDesign(String moduleId, String designId) => _wrap('deleteDesign', () async {
     final db = await _dbHelper.database;
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     await db.transaction((txn) async {
       await txn.update('custom_module_designs', {'is_deleted': 1, 'is_active': 0, 'updated_at': now},
           where: 'id = ?', whereArgs: [designId]);

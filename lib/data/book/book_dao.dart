@@ -112,7 +112,7 @@ class BookDao {
         'books',
         {
           'is_deleted': 1,
-          'updated_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
         },
         where: 'id = ?',
         whereArgs: [id],
@@ -179,7 +179,7 @@ class BookDao {
     return await db.transaction((txn) async {
       final result = await txn.update(
         'books',
-        {'is_deleted': 0, 'updated_at': DateTime.now().toIso8601String()},
+        {'is_deleted': 0, 'updated_at': DateTime.now().toUtc().toIso8601String()},
         where: 'id = ?',
         whereArgs: [id],
       );

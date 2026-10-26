@@ -274,13 +274,16 @@ class _GameTabViewState extends State<_GameTabView>
       if (updated != null) {
         if (_status != null && updated.status != _status) {
           // 状态已变更，从当前列表移除
-          if (idx != -1) setState(() { _items.removeAt(idx); });
+          if (idx != -1) setState(() { _items.removeAt(idx); _offset = (_offset - 1).clamp(0, _offset); });
         } else if (idx != -1) {
           setState(() { _items[idx] = updated; });
+        } else {
+          // 编辑后归入本页：重新拉取以保证位置与分页正确
+          _loadFirst();
         }
       } else if (idx != -1) {
         // 游戏已被删除，从列表移除
-        setState(() { _items.removeAt(idx); });
+        setState(() { _items.removeAt(idx); _offset = (_offset - 1).clamp(0, _offset); });
       }
       return;
     }
@@ -313,14 +316,17 @@ class _GameTabViewState extends State<_GameTabView>
     });
   }
 
+  int _loadSeq = 0;
+
   Future<void> _loadFirst() async {
+    final seq = ++_loadSeq;
     final provider = context.read<AppProvider>();
     final sortMode = UserPrefs().effectiveGameSortMode;
     _initialized = true;
     setState(() { _isLoading = true; _offset = 0; _hasMore = true; });
     try {
       final list = await provider.loadGamesPaged(status: _status, offset: 0, sortMode: sortMode);
-      if (!mounted) return;
+      if (!mounted || seq != _loadSeq) return;
       setState(() {
         _items.clear();
         _items.addAll(list);
@@ -331,19 +337,20 @@ class _GameTabViewState extends State<_GameTabView>
       _scheduleChainLoad();
     } catch (e) {
       debugPrint('[GameTab] 首屏加载失败: $e');
-      if (!mounted) return;
+      if (!mounted || seq != _loadSeq) return;
       setState(() { _isLoading = false; _hasMore = false; });
     }
   }
 
   Future<void> _loadMore() async {
     if (_isLoading || !_hasMore) return;
+    final seq = ++_loadSeq;
     setState(() => _isLoading = true);
     final provider = context.read<AppProvider>();
     final sortMode = UserPrefs().effectiveGameSortMode;
     try {
       final list = await provider.loadGamesPaged(status: _status, offset: _offset, sortMode: sortMode);
-      if (!mounted) return;
+      if (!mounted || seq != _loadSeq) return;
       setState(() {
         _items.addAll(list);
         _offset += list.length;
@@ -353,7 +360,7 @@ class _GameTabViewState extends State<_GameTabView>
       _scheduleChainLoad();
     } catch (e) {
       debugPrint('[GameTab] 分页加载失败: $e');
-      if (!mounted) return;
+      if (!mounted || seq != _loadSeq) return;
       setState(() => _isLoading = false);
     }
   }

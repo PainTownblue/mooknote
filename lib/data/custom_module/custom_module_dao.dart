@@ -58,7 +58,7 @@ class CustomModuleDao {
     final db = await _dbHelper.database;
     await db.update(
       'custom_modules',
-      {'is_enabled': enabled ? 1 : 0, 'updated_at': DateTime.now().toIso8601String()},
+      {'is_enabled': enabled ? 1 : 0, 'updated_at': DateTime.now().toUtc().toIso8601String()},
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -67,7 +67,7 @@ class CustomModuleDao {
   /// 软删除模块，级联软删其设计与条目
   Future<void> deleteModule(String id) => _wrap('deleteModule', () async {
     final db = await _dbHelper.database;
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     await db.transaction((txn) async {
       await txn.update('custom_modules', {'is_deleted': 1, 'updated_at': now}, where: 'id = ?', whereArgs: [id]);
       await txn.update('custom_module_designs', {'is_deleted': 1, 'updated_at': now}, where: 'module_id = ?', whereArgs: [id]);

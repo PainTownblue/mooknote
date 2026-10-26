@@ -1216,11 +1216,15 @@ class _MovieFormPageState extends State<MovieFormPage> {
     return result ?? false;
   }
 
+  bool _isSaving = false;
+
   /// 保存影视
   Future<void> _saveMovie() async {
+    if (_isSaving) return;
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    _isSaving = true;
 
     try {
     final rating = _ratingController.text.isNotEmpty
@@ -1293,6 +1297,7 @@ class _MovieFormPageState extends State<MovieFormPage> {
 
     Navigator.pop(context);
     } catch (e) {
+      _isSaving = false;
       if (!mounted) return;
       ToastUtil.show(context, '保存失败: {e}'.trf({'e': e}));
     }

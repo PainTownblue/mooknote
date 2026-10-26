@@ -154,13 +154,16 @@ class WebDAVService {
         );
 
         if (propfindResponse.statusCode == 207) {
+          client.close();
           return {'success': true, 'message': '连接成功'.tr};
         } else if (propfindResponse.statusCode == 401) {
+          client.close();
           return {'success': false, 'message': '认证失败，请检查用户名和密码'.tr};
         } else if (propfindResponse.statusCode == 404) {
           // 目录不存在，尝试创建
         } else {
           await propfindResponse.stream.drain();
+          client.close();
           return {'success': false, 'message': '服务器返回错误: {code}'.trf({'code': propfindResponse.statusCode})};
         }
       } catch (e) {
@@ -438,7 +441,7 @@ class WebDAVService {
         bodyBytes: bytes,
         timeout: _httpTimeout,
       );
-      await response.stream.drain();
+      await response.stream.drain().timeout(_httpTimeout);
 
       debugPrint('[WebDAV] PUT $url -> ${response.statusCode}');
       final putOk = response.statusCode == 200 ||
@@ -446,26 +449,7 @@ class WebDAVService {
           response.statusCode == 204;
       if (!putOk) return false;
 
-      final verify = await _sendAuthed(
-        client, 'HEAD', url, username, password,
-        timeout: _shortTimeout,
-      );
-      await verify.stream.drain();
-
-      if (verify.statusCode != 200) {
-        debugPrint('[WebDAV] PUT 返回成功但 HEAD 校验为 ${verify.statusCode}，文件实际未保存: $url');
-        return false;
-      }
-
-      final remoteLength = int.tryParse(verify.headers['content-length'] ?? '');
-      // 坚果云等服务器对刚 PUT 的文件 HEAD 返回 content-length: 0（异步落盘），
-      // 0 视为"未报告大小"跳过校验；否则会误判失败导致整组备份被回滚删除
-      if (remoteLength != null && remoteLength > 0 && remoteLength != bytes.length) {
-        debugPrint('[WebDAV] 文件大小不一致: 本地 ${bytes.length} 远程 $remoteLength');
-        return false;
-      }
-
-      return true;
+      return _verifyRemoteSize(client, url, username, password, bytes.length);
     } catch (e) {
       debugPrint('[WebDAV] putVerified error: $e');
       return false;
@@ -503,7 +487,8 @@ class WebDAVService {
         initialAuth: preemptAuth,
       );
       final sentMs = sw.elapsedMilliseconds;
-      await response.stream.drain();
+      // 响应体排空也套空闲超时，服务器返回头后挂起时不能永久卡住同步锁
+      await response.stream.drain().timeout(_httpTimeout);
 
       debugPrint('[WebDAV] PUT $url -> ${response.statusCode} '
           '(${length ~/ 1024}KB, 发送等待 ${sentMs}ms, 总耗时 ${sw.elapsedMilliseconds}ms, '
@@ -514,27 +499,8 @@ class WebDAVService {
       if (!putOk) return false;
 
       // 部分 WebDAV 服务器在写入失败（配额满、超过单文件上限等）时仍返回 200，
-      // 必须 HEAD 校验文件确实存在且大小一致，否则会得到假成功
-      final verify = await _sendAuthed(
-        client, 'HEAD', url, username, password,
-        timeout: _shortTimeout,
-      );
-      await verify.stream.drain();
-
-      if (verify.statusCode != 200) {
-        debugPrint('[WebDAV] PUT 返回成功但 HEAD 校验为 ${verify.statusCode}，文件实际未保存: $url');
-        return false;
-      }
-
-      final remoteLength = int.tryParse(verify.headers['content-length'] ?? '');
-      // 坚果云等服务器对刚 PUT 的文件 HEAD 返回 content-length: 0（异步落盘），
-      // 0 视为"未报告大小"跳过校验；否则会误判失败导致整组备份被回滚删除
-      if (remoteLength != null && remoteLength > 0 && remoteLength != length) {
-        debugPrint('[WebDAV] 文件大小不一致: 本地 $length 远程 $remoteLength');
-        return false;
-      }
-
-      return true;
+      // 必须校验文件确实存在且大小一致，否则会得到假成功
+      return _verifyRemoteSize(client, url, username, password, length);
     } catch (e) {
       debugPrint('[WebDAV] _uploadFile error: $e');
       return false;
@@ -814,6 +780,11 @@ class WebDAVService {
     return 'Basic $credentials';
   }
 
+  /// 重定向是否仍指向同一主机（忽略协议差异）。
+  /// 跨主机重定向不转发 Authorization，防止凭证被恶意/被劫持服务器套走
+  bool _isSameAuthority(Uri a, Uri b) =>
+      a.host.toLowerCase() == b.host.toLowerCase() && a.port == b.port;
+
   /// 发送带认证的请求：先发 Basic，若服务器返回 401 且要求 Digest，则按
   /// RFC 7616 (MD5, qop=auth) 计算 Digest 头重试；同时处理重定向。
   /// [onRedirect] 在最终 URL 发生变化时回调（用于调用方更新基准 URL）。
@@ -828,6 +799,7 @@ class WebDAVService {
     List<int>? bodyBytes,
     Duration? timeout,
     void Function(String newUrl)? onRedirect,
+    int redirectCount = 0,
   }) async {
     final uri = Uri.parse(url);
 
@@ -863,12 +835,20 @@ class WebDAVService {
       final location = response.headers['location'];
       await response.stream.drain();
       if (location != null) {
-        final newUrl = uri.resolve(location).toString();
+        final redirectUri = uri.resolve(location);
+        if (redirectCount >= 5) {
+          throw StateError('重定向次数过多，已中止');
+        }
+        if (!_isSameAuthority(uri, redirectUri)) {
+          throw StateError('服务器重定向到不同主机，为保护账号信息已中止');
+        }
+        final newUrl = redirectUri.toString();
         onRedirect?.call(newUrl);
         return _sendAuthed(
           client, method, newUrl, username, password,
           headers: headers, body: body, bodyBytes: bodyBytes,
           timeout: timeout, onRedirect: onRedirect,
+          redirectCount: redirectCount + 1,
         );
       }
     }
@@ -905,6 +885,53 @@ class WebDAVService {
     return null;
   }
 
+  /// 校验远程文件大小与本地一致。
+  /// 坚果云 PUT 后短时间内 HEAD 返回 content-length: 0（异步落盘），故对 0 重试等待；
+  /// 始终为 0 时用 Range GET 的 Content-Range 二次确认，
+  /// 避免配额满等真实 0 字节写入被当成假成功后旧备份又被清理
+  Future<bool> _verifyRemoteSize(
+    http.Client client,
+    String url,
+    String username,
+    String password,
+    int expected,
+  ) async {
+    for (var i = 0; i < 3; i++) {
+      final resp = await _sendAuthed(
+        client, 'HEAD', url, username, password,
+        timeout: _shortTimeout,
+      );
+      await resp.stream.drain().timeout(_shortTimeout);
+      if (resp.statusCode != 200) {
+        debugPrint('[WebDAV] HEAD 校验为 ${resp.statusCode}，文件实际未保存: $url');
+        return false;
+      }
+      final len = int.tryParse(resp.headers['content-length'] ?? '');
+      if (len != null && len > 0) return len == expected;
+      await Future.delayed(const Duration(milliseconds: 1500)); // 等待异步落盘
+    }
+    try {
+      final ranged = await _sendAuthed(
+        client, 'GET', url, username, password,
+        headers: const {'Range': 'bytes=0-0'},
+        timeout: _shortTimeout,
+      );
+      await ranged.stream.drain().timeout(_shortTimeout);
+      if (ranged.statusCode == 206) {
+        // Content-Range: bytes 0-0/12345
+        final total = int.tryParse(ranged.headers['content-range']?.split('/').last ?? '');
+        return total == expected;
+      }
+      if (ranged.statusCode == 200) {
+        final len = int.tryParse(ranged.headers['content-length'] ?? '');
+        return len == expected;
+      }
+    } catch (e) {
+      debugPrint('[WebDAV] Range 二次校验失败: $e');
+    }
+    return false;
+  }
+
   /// [_sendAuthed] 的流式上传变体：请求体由 [bodyStreamFactory] 按需打开
   /// （Digest 重试与重定向时会重新调用以获取新流），用于大文件上传。
   /// [initialAuth] 为首包直接使用的 Authorization（如预探测得到的 Digest 头），
@@ -921,6 +948,7 @@ class WebDAVService {
     Duration? timeout,
     String? initialAuth,
     void Function(String newUrl)? onRedirect,
+    int redirectCount = 0,
   }) async {
     final uri = Uri.parse(url);
 
@@ -931,7 +959,9 @@ class WebDAVService {
       req.contentLength = contentLength;
       // 服务器提前关闭连接（如 Digest 挑战）时 sink 会拒绝写入，捕获后取消泵送
       StreamSubscription<List<int>>? sub;
-      sub = bodyStreamFactory().listen(
+      // 对请求体泵送套用空闲超时，读盘/网络反压长时间停顿时中止上传，
+      // 避免半连接把同步锁永久卡死
+      sub = bodyStreamFactory().timeout(timeout ?? _httpTimeout).listen(
         (chunk) {
           try {
             req.sink.add(chunk);
@@ -969,13 +999,21 @@ class WebDAVService {
       final location = response.headers['location'];
       await response.stream.drain();
       if (location != null) {
-        final newUrl = uri.resolve(location).toString();
+        final redirectUri = uri.resolve(location);
+        if (redirectCount >= 5) {
+          throw StateError('重定向次数过多，已中止');
+        }
+        if (!_isSameAuthority(uri, redirectUri)) {
+          throw StateError('服务器重定向到不同主机，为保护账号信息已中止');
+        }
+        final newUrl = redirectUri.toString();
         onRedirect?.call(newUrl);
         return _sendAuthedStream(
           client, method, newUrl, username, password,
           headers: headers, contentLength: contentLength,
           bodyStreamFactory: bodyStreamFactory,
           timeout: timeout, onRedirect: onRedirect,
+          redirectCount: redirectCount + 1,
         );
       }
     }

@@ -61,6 +61,10 @@ class _OnlineSearchPageBodyState extends State<OnlineSearchPageBody> {
   bool _bookLoadingMore = false;
   int _bookTotal = 0;
 
+  // 请求代次：新搜索/翻页使旧响应作废，防止旧关键词结果污染新列表
+  int _movieCallSeq = 0;
+  int _bookCallSeq = 0;
+
   @override
   void initState() {
     super.initState();
@@ -113,6 +117,8 @@ class _OnlineSearchPageBodyState extends State<OnlineSearchPageBody> {
       _bookPage = 1;
       _bookPageCount = 1;
       _bookTotal = 0;
+      _movieLoadingMore = false;
+      _bookLoadingMore = false;
     });
     _userPrefs.addSearchHistory(q).then((_) {
       if (!mounted) return;
@@ -195,9 +201,10 @@ class _OnlineSearchPageBodyState extends State<OnlineSearchPageBody> {
   }
 
   Future<void> _searchMovies(String keyword, int page) async {
+    final callSeq = ++_movieCallSeq;
     final token = UserPrefs().movieSearchToken;
     if (token.isEmpty) {
-      if (mounted) ToastUtil.show(context, '请先在设置中配置影视搜索 Token'.tr);
+      if (mounted && callSeq == _movieCallSeq) ToastUtil.show(context, '请先在设置中配置影视搜索 Token'.tr);
       return;
     }
 
@@ -214,7 +221,7 @@ class _OnlineSearchPageBodyState extends State<OnlineSearchPageBody> {
           '${ServerConfig.vipBaseUrl}/api/movie/list?movieName=${Uri.encodeComponent(keyword)}&token=$token&page=$page';
       final resp =
           await http.get(Uri.parse(url)).timeout(const Duration(seconds: 20));
-      if (!mounted) return;
+      if (!mounted || callSeq != _movieCallSeq) return;
 
       if (resp.statusCode == 200) {
         final data = json.decode(resp.body);
@@ -229,9 +236,9 @@ class _OnlineSearchPageBodyState extends State<OnlineSearchPageBody> {
             } else {
               _movieList.addAll(list);
             }
-            _movieTotal = data['data']['total'] ?? 0;
-            _moviePage = data['data']['page'] ?? page;
-            _moviePageCount = data['data']['pagecount'] ?? page;
+            _movieTotal = (data['data']['total'] as num?)?.toInt() ?? 0;
+            _moviePage = (data['data']['page'] as num?)?.toInt() ?? page;
+            _moviePageCount = (data['data']['pagecount'] as num?)?.toInt() ?? page;
           });
         } else if (data['code'] == 401 ||
             data['code'] == 403 ||
@@ -243,12 +250,12 @@ class _OnlineSearchPageBodyState extends State<OnlineSearchPageBody> {
               _movieLoadingMore = false;
             });
           }
-          _showTokenExpiredDialog();
+          if (callSeq == _movieCallSeq) _showTokenExpiredDialog();
           return;
         }
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && callSeq == _movieCallSeq) {
         final msg = e.toString().contains('TimeoutException')
             ? '搜索超时，请稍后重试'.tr
             : '搜索失败，请检查网络'.tr;
@@ -256,7 +263,7 @@ class _OnlineSearchPageBodyState extends State<OnlineSearchPageBody> {
       }
     }
 
-    if (mounted) {
+    if (mounted && callSeq == _movieCallSeq) {
       setState(() {
         _movieLoading = false;
         _movieLoadingMore = false;
@@ -269,6 +276,7 @@ class _OnlineSearchPageBodyState extends State<OnlineSearchPageBody> {
   }
 
   Future<void> _searchBooks(String keyword, int page) async {
+    final callSeq = ++_bookCallSeq;
     final token = UserPrefs().bookSearchToken;
     if (token.isEmpty) return;
 
@@ -285,7 +293,7 @@ class _OnlineSearchPageBodyState extends State<OnlineSearchPageBody> {
           '${ServerConfig.vipBaseUrl}/api/book/list?title=${Uri.encodeComponent(keyword)}&token=$token&page=$page';
       final resp =
           await http.get(Uri.parse(url)).timeout(const Duration(seconds: 20));
-      if (!mounted) return;
+      if (!mounted || callSeq != _bookCallSeq) return;
 
       if (resp.statusCode == 200) {
         final data = json.decode(resp.body);
@@ -300,9 +308,9 @@ class _OnlineSearchPageBodyState extends State<OnlineSearchPageBody> {
             } else {
               _bookList.addAll(list);
             }
-            _bookTotal = data['data']['total'] ?? 0;
-            _bookPage = data['data']['page'] ?? page;
-            _bookPageCount = data['data']['pagecount'] ?? page;
+            _bookTotal = (data['data']['total'] as num?)?.toInt() ?? 0;
+            _bookPage = (data['data']['page'] as num?)?.toInt() ?? page;
+            _bookPageCount = (data['data']['pagecount'] as num?)?.toInt() ?? page;
           });
         } else if (data['code'] == 401 ||
             data['code'] == 403 ||
@@ -314,12 +322,12 @@ class _OnlineSearchPageBodyState extends State<OnlineSearchPageBody> {
               _bookLoadingMore = false;
             });
           }
-          _showTokenExpiredDialog();
+          if (callSeq == _bookCallSeq) _showTokenExpiredDialog();
           return;
         }
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && callSeq == _bookCallSeq) {
         final msg = e.toString().contains('TimeoutException')
             ? '搜索超时，请稍后重试'.tr
             : '搜索失败，请检查网络'.tr;
@@ -327,7 +335,7 @@ class _OnlineSearchPageBodyState extends State<OnlineSearchPageBody> {
       }
     }
 
-    if (mounted) {
+    if (mounted && callSeq == _bookCallSeq) {
       setState(() {
         _bookLoading = false;
         _bookLoadingMore = false;

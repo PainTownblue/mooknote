@@ -288,9 +288,20 @@ class _MovieTabViewState extends State<_MovieTabView>
       _prevMovieCount = p.movies.length;
       final id = p.lastEditedItemId!;
       final i = _items.indexWhere((m) => m.id == id);
+      final u = p.movies.where((m) => m.id == id).firstOrNull;
+      final belongs = u != null &&
+          (_status == null || u.status == _status) &&
+          (_category == null || u.category == _category);
       if (i != -1) {
-        final u = p.movies.where((m) => m.id == id).firstOrNull;
-        if (u != null) setState(() => _items[i] = u);
+        if (!belongs) {
+          // 状态/分类被改走或条目已删除：移出本页
+          setState(() { _items.removeAt(i); _offset = (_offset - 1).clamp(0, _offset); });
+        } else {
+          setState(() => _items[i] = u);
+        }
+      } else if (belongs) {
+        // 编辑后归入本页：重新拉取以保证位置与分页正确
+        _loadFirst();
       }
       return;
     }
@@ -323,7 +334,10 @@ class _MovieTabViewState extends State<_MovieTabView>
     });
   }
 
+  int _loadSeq = 0;
+
   Future<void> _loadFirst() async {
+    final seq = ++_loadSeq;
     final provider = context.read<AppProvider>();
     final sortMode = UserPrefs().effectiveMovieSortMode;
     _initialized = true;
@@ -331,7 +345,7 @@ class _MovieTabViewState extends State<_MovieTabView>
     try {
       final list = await provider.loadMoviesPaged(
           status: _status, category: _category, offset: 0, sortMode: sortMode);
-      if (!mounted) return;
+      if (!mounted || seq != _loadSeq) return;
       setState(() {
         _items.clear();
         _items.addAll(list);
@@ -342,20 +356,21 @@ class _MovieTabViewState extends State<_MovieTabView>
       _scheduleChainLoad();
     } catch (e) {
       debugPrint('[MovieTab] 首屏加载失败: $e');
-      if (!mounted) return;
+      if (!mounted || seq != _loadSeq) return;
       setState(() { _isLoading = false; _hasMore = false; });
     }
   }
 
   Future<void> _loadMore() async {
     if (_isLoading || !_hasMore) return;
+    final seq = ++_loadSeq;
     setState(() => _isLoading = true);
     final provider = context.read<AppProvider>();
     final sortMode = UserPrefs().effectiveMovieSortMode;
     try {
       final list = await provider.loadMoviesPaged(
           status: _status, category: _category, offset: _offset, sortMode: sortMode);
-      if (!mounted) return;
+      if (!mounted || seq != _loadSeq) return;
       setState(() {
         _items.addAll(list);
         _offset += list.length;
@@ -365,7 +380,7 @@ class _MovieTabViewState extends State<_MovieTabView>
       _scheduleChainLoad();
     } catch (e) {
       debugPrint('[MovieTab] 分页加载失败: $e');
-      if (!mounted) return;
+      if (!mounted || seq != _loadSeq) return;
       setState(() => _isLoading = false);
     }
   }

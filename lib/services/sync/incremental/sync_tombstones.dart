@@ -4,10 +4,10 @@ import 'sync_identity.dart';
 
 /// 增量同步墓碑：记录本客户端的彻底删除操作，供推送时生成删除 op
 class SyncTombstones {
-  /// 记录一次彻底删除
-  static Future<void> record(String entityType, String entityId) async {
+  /// 记录一次彻底删除。可传入 [executor]（通常是事务），使墓碑与删除操作同事务原子提交
+  static Future<void> record(String entityType, String entityId, [DatabaseExecutor? executor]) async {
     try {
-      final db = await DatabaseHelper.instance.database;
+      final db = executor ?? await DatabaseHelper.instance.database;
       final clientId = await SyncIdentity.clientId();
       await db.insert(
         'sync_tombstones',

@@ -36,10 +36,12 @@ class IncManifestBuilder {
       final groupsByParent = <String, Map<String, List<Map<String, dynamic>>>>{};
       for (final groupKey in spec.groups.keys) {
         final gspec = IncEntities.groupSpecOf(groupKey)!;
-        // 分集/章节/关卡历史上残留的 is_deleted=1 行不得进入基线，
+        // 历史上残留的 is_deleted=1 行不得进入基线，
         // 否则压实后会随分块扩散到所有客户端永久残留
-        final softWhere = const {'movie_episodes', 'book_chapters', 'game_levels'}
-                .contains(groupKey)
+        final softWhere = const {
+              'movie_episodes', 'book_chapters', 'game_levels',
+              'movie_posters', 'game_screenshots',
+            }.contains(groupKey)
             ? 'is_deleted = 0'
             : null;
         final groupRows = await db.query(groupKey, where: softWhere);

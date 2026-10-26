@@ -53,7 +53,7 @@ class ImageAssetDao {
     try {
       final db = await _dbHelper.database;
       final trimmed = title.trim();
-      final now = DateTime.now().toIso8601String();
+      final now = DateTime.now().toUtc().toIso8601String();
       final existing = await db.query('image_assets',
           columns: ['id'], where: 'path = ?', whereArgs: [logicalPath]);
       if (trimmed.isEmpty) {
@@ -96,7 +96,7 @@ class ImageAssetDao {
       await db.delete('image_assets', where: 'path = ?', whereArgs: [newLogical]);
       await db.update(
         'image_assets',
-        {'path': newLogical, 'updated_at': DateTime.now().toIso8601String()},
+        {'path': newLogical, 'updated_at': DateTime.now().toUtc().toIso8601String()},
         where: 'path = ?',
         whereArgs: [oldLogical],
       );

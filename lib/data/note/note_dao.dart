@@ -81,7 +81,7 @@ class NoteDao {
     final db = await _dbHelper.database;
     return await db.update(
       'notes',
-      {'is_deleted': 1, 'updated_at': DateTime.now().toIso8601String()},
+      {'is_deleted': 1, 'updated_at': DateTime.now().toUtc().toIso8601String()},
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -92,7 +92,7 @@ class NoteDao {
     final db = await _dbHelper.database;
     return await db.update(
       'notes',
-      {'is_pinned': isPinned ? 1 : 0, 'updated_at': DateTime.now().toIso8601String()},
+      {'is_pinned': isPinned ? 1 : 0, 'updated_at': DateTime.now().toUtc().toIso8601String()},
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -117,7 +117,7 @@ class NoteDao {
     final db = await _dbHelper.database;
     return await db.update(
       'notes',
-      {'is_deleted': 0, 'updated_at': DateTime.now().toIso8601String()},
+      {'is_deleted': 0, 'updated_at': DateTime.now().toUtc().toIso8601String()},
       where: 'id = ?',
       whereArgs: [id],
     );

@@ -592,12 +592,15 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> permanentDeleteCustomModuleItem(String id) async {
-    await SyncTombstones.record('custom_module_items', id);
     final item = await _customModuleItemDao.getItemRaw(id);
+    final db = await DatabaseHelper.instance.database;
+    await db.transaction((txn) async {
+      await SyncTombstones.record('custom_module_items', id, txn);
+      await _customModuleItemDao.permanentDeleteItem(id);
+    });
     if (item != null) {
       await ImagePathHelper.instance.deleteCustomModuleItemImages(item.moduleId, id);
     }
-    await _customModuleItemDao.permanentDeleteItem(id);
   }
 
   // 根据状态获取影视列表
@@ -1158,8 +1161,11 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> removePlaylist(String id) async {
-    await SyncTombstones.record('playlists', id);
-    await _playlistDao.deletePlaylist(id);
+    final db = await DatabaseHelper.instance.database;
+    await db.transaction((txn) async {
+      await SyncTombstones.record('playlists', id, txn);
+      await _playlistDao.deletePlaylist(id);
+    });
     final idx = _playlists.indexWhere((p) => p.id == id);
     final name = idx != -1 ? _playlists[idx].name : '';
     if (idx != -1) _playlists.removeAt(idx);
@@ -1671,10 +1677,14 @@ class AppProvider extends ChangeNotifier {
 
   /// 彻底删除影视
   Future<void> permanentDeleteMovie(String id) async {
-    await SyncTombstones.record('movies', id);
+    final db = await DatabaseHelper.instance.database;
+    // 墓碑与 DB 删除同事务原子提交（DAO 内层事务复用当前事务），避免半途失败误删他端数据
+    await db.transaction((txn) async {
+      await SyncTombstones.record('movies', id, txn);
+      // 分集等全部子表在 DAO 事务内与父行同删，避免中途失败产生孤儿
+      await _movieDao.permanentDeleteMovie(id);
+    });
     await ImagePathHelper.instance.deleteMovieImages(id);
-    // 分集等全部子表在 DAO 事务内与父行同删，避免中途失败产生孤儿
-    await _movieDao.permanentDeleteMovie(id);
   }
 
   /// 获取已删除的书籍
@@ -1690,10 +1700,14 @@ class AppProvider extends ChangeNotifier {
 
   /// 彻底删除书籍
   Future<void> permanentDeleteBook(String id) async {
-    await SyncTombstones.record('books', id);
+    final db = await DatabaseHelper.instance.database;
+    // 墓碑与 DB 删除同事务原子提交（DAO 内层事务复用当前事务）
+    await db.transaction((txn) async {
+      await SyncTombstones.record('books', id, txn);
+      // 章节等全部子表在 DAO 事务内与父行同删，避免中途失败产生孤儿
+      await _bookDao.permanentDeleteBook(id);
+    });
     await ImagePathHelper.instance.deleteBookImages(id);
-    // 章节等全部子表在 DAO 事务内与父行同删，避免中途失败产生孤儿
-    await _bookDao.permanentDeleteBook(id);
   }
 
   /// 获取已删除的笔记
@@ -1709,9 +1723,12 @@ class AppProvider extends ChangeNotifier {
 
   /// 彻底删除笔记
   Future<void> permanentDeleteNote(String id) async {
-    await SyncTombstones.record('notes', id);
+    final db = await DatabaseHelper.instance.database;
+    await db.transaction((txn) async {
+      await SyncTombstones.record('notes', id, txn);
+      await txn.delete('notes', where: 'id = ?', whereArgs: [id]);
+    });
     await ImagePathHelper.instance.deleteNoteImages(id);
-    await _noteDao.permanentDeleteNote(id);
   }
 
   /// 获取已删除的游戏
@@ -1727,14 +1744,26 @@ class AppProvider extends ChangeNotifier {
 
   /// 彻底删除游戏
   Future<void> permanentDeleteGame(String id) async {
-    await SyncTombstones.record('games', id);
+    final db = await DatabaseHelper.instance.database;
+    // 墓碑与 DB 删除同事务原子提交（DAO 内层事务复用当前事务）
+    await db.transaction((txn) async {
+      await SyncTombstones.record('games', id, txn);
+      // 关卡/通关记录等全部子表在 DAO 事务内与父行同删，避免中途失败产生孤儿
+      await _gameDao.permanentDeleteGame(id);
+    });
     await ImagePathHelper.instance.deleteGameImages(id);
-    // 关卡/通关记录等全部子表在 DAO 事务内与父行同删，避免中途失败产生孤儿
-    await _gameDao.permanentDeleteGame(id);
   }
   
+  bool _isClearingRecycleBin = false;
+  /// 清空回收站进行中：回收站页面据此禁用单条恢复/删除，避免与清空操作交叉
+  bool get isClearingRecycleBin => _isClearingRecycleBin;
+
   /// 清空回收站
   Future<void> clearRecycleBin() async {
+    if (_isClearingRecycleBin) return;
+    _isClearingRecycleBin = true;
+    notifyListeners();
+    try {
     final deletedMovies = await getDeletedMovies();
     final deletedBooks = await getDeletedBooks();
     final deletedNotes = await getDeletedNotes();
@@ -1787,48 +1816,49 @@ class AppProvider extends ChangeNotifier {
       excerptIds.addAll(rows.map((r) => r['id'] as String));
     }
 
-    // 记录同步墓碑，保证其他设备能收到这些彻底删除（组表随父实体墓碑覆盖，无需单独记录）
-    for (final id in movieIds) {
-      await SyncTombstones.record('movies', id);
-    }
-    for (final id in bookIds) {
-      await SyncTombstones.record('books', id);
-    }
-    for (final id in noteIds) {
-      await SyncTombstones.record('notes', id);
-    }
-    for (final id in gameIds) {
-      await SyncTombstones.record('games', id);
-    }
-    for (final id in movieReviewIds) {
-      await SyncTombstones.record('movie_reviews', id);
-    }
-    for (final id in bookReviewIds) {
-      await SyncTombstones.record('book_reviews', id);
-    }
-    for (final id in gameReviewIds) {
-      await SyncTombstones.record('game_reviews', id);
-    }
-    for (final id in excerptIds) {
-      await SyncTombstones.record('book_excerpts', id);
-    }
-    for (final id in personIds) {
-      await SyncTombstones.record('people', id);
-    }
-    for (final id in movieCharacterIds) {
-      await SyncTombstones.record('movie_characters', id);
-    }
-    for (final id in bookCharacterIds) {
-      await SyncTombstones.record('book_characters', id);
-    }
-    for (final id in gameCharacterIds) {
-      await SyncTombstones.record('game_characters', id);
-    }
-    for (final item in deletedCustomModuleItems) {
-      await SyncTombstones.record('custom_module_items', item.id);
-    }
-
     await db.transaction((txn) async {
+      // 墓碑与删除在同一事务内原子提交：事务失败则墓碑一并回滚，
+      // 不会出现本地数据还在、他端却收到删除的情况（组表随父实体墓碑覆盖，无需单独记录）
+      for (final id in movieIds) {
+        await SyncTombstones.record('movies', id, txn);
+      }
+      for (final id in bookIds) {
+        await SyncTombstones.record('books', id, txn);
+      }
+      for (final id in noteIds) {
+        await SyncTombstones.record('notes', id, txn);
+      }
+      for (final id in gameIds) {
+        await SyncTombstones.record('games', id, txn);
+      }
+      for (final id in movieReviewIds) {
+        await SyncTombstones.record('movie_reviews', id, txn);
+      }
+      for (final id in bookReviewIds) {
+        await SyncTombstones.record('book_reviews', id, txn);
+      }
+      for (final id in gameReviewIds) {
+        await SyncTombstones.record('game_reviews', id, txn);
+      }
+      for (final id in excerptIds) {
+        await SyncTombstones.record('book_excerpts', id, txn);
+      }
+      for (final id in personIds) {
+        await SyncTombstones.record('people', id, txn);
+      }
+      for (final id in movieCharacterIds) {
+        await SyncTombstones.record('movie_characters', id, txn);
+      }
+      for (final id in bookCharacterIds) {
+        await SyncTombstones.record('book_characters', id, txn);
+      }
+      for (final id in gameCharacterIds) {
+        await SyncTombstones.record('game_characters', id, txn);
+      }
+      for (final item in deletedCustomModuleItems) {
+        await SyncTombstones.record('custom_module_items', item.id, txn);
+      }
+
       for (final id in movieIds) {
         await txn.delete('movie_reviews', where: 'movie_id = ?', whereArgs: [id]);
         await txn.delete('movie_posters', where: 'movie_id = ?', whereArgs: [id]);
@@ -1931,6 +1961,10 @@ class AppProvider extends ChangeNotifier {
     await loadPlaylists();
     await loadPeople();
     bumpCustomModuleItemsVersion();
+    } finally {
+      _isClearingRecycleBin = false;
+      notifyListeners();
+    }
   }
 
   // ========== 影评书评回收站 ==========
@@ -1944,9 +1978,12 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> permanentDeleteMovieReview(String id) async {
-    await SyncTombstones.record('movie_reviews', id);
+    final db = await DatabaseHelper.instance.database;
+    await db.transaction((txn) async {
+      await SyncTombstones.record('movie_reviews', id, txn);
+      await _reviewDao.permanentDeleteReview(id);
+    });
     await ImagePathHelper.instance.deleteReviewImages(id);
-    await _reviewDao.permanentDeleteReview(id);
   }
 
   Future<List<BookReview>> getDeletedBookReviews() async {
@@ -1958,9 +1995,12 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> permanentDeleteBookReview(String id) async {
-    await SyncTombstones.record('book_reviews', id);
+    final db = await DatabaseHelper.instance.database;
+    await db.transaction((txn) async {
+      await SyncTombstones.record('book_reviews', id, txn);
+      await _bookReviewDao.permanentDeleteReview(id);
+    });
     await ImagePathHelper.instance.deleteReviewImages(id);
-    await _bookReviewDao.permanentDeleteReview(id);
   }
 
   // ========== 游戏评价回收站 ==========
@@ -1974,9 +2014,12 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> permanentDeleteGameReview(String id) async {
-    await SyncTombstones.record('game_reviews', id);
+    final db = await DatabaseHelper.instance.database;
+    await db.transaction((txn) async {
+      await SyncTombstones.record('game_reviews', id, txn);
+      await _gameReviewDao.permanentDeleteReview(id);
+    });
     await ImagePathHelper.instance.deleteReviewImages(id);
-    await _gameReviewDao.permanentDeleteReview(id);
   }
 
   // ========== 摘抄回收站方法 ==========
@@ -1990,8 +2033,11 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> permanentDeleteBookExcerpt(String id) async {
-    await SyncTombstones.record('book_excerpts', id);
-    await _bookExcerptDao.permanentDeleteExcerpt(id);
+    final db = await DatabaseHelper.instance.database;
+    await db.transaction((txn) async {
+      await SyncTombstones.record('book_excerpts', id, txn);
+      await _bookExcerptDao.permanentDeleteExcerpt(id);
+    });
   }
 
 
@@ -2166,9 +2212,12 @@ class AppProvider extends ChangeNotifier {
 
   /// 彻底删除人物
   Future<void> permanentDeletePerson(String id) async {
-    await SyncTombstones.record('people', id);
+    final db = await DatabaseHelper.instance.database;
+    await db.transaction((txn) async {
+      await SyncTombstones.record('people', id, txn);
+      await _personDao.permanentDeletePerson(id);
+    });
     await ImagePathHelper.instance.deletePersonImages(id);
-    await _personDao.permanentDeletePerson(id);
   }
 
   /// 获取已删除的人物
@@ -2415,9 +2464,12 @@ class AppProvider extends ChangeNotifier {
 
   /// 彻底删除影视角色
   Future<void> permanentDeleteMovieCharacter(String id) async {
-    await SyncTombstones.record('movie_characters', id);
+    final db = await DatabaseHelper.instance.database;
+    await db.transaction((txn) async {
+      await SyncTombstones.record('movie_characters', id, txn);
+      await _movieCharacterDao.permanentDelete(id);
+    });
     await ImagePathHelper.instance.deleteCharacterImages(id);
-    await _movieCharacterDao.permanentDelete(id);
   }
 
   /// 获取已删除的影视角色
@@ -2463,9 +2515,12 @@ class AppProvider extends ChangeNotifier {
 
   /// 彻底删除书籍角色
   Future<void> permanentDeleteBookCharacter(String id) async {
-    await SyncTombstones.record('book_characters', id);
+    final db = await DatabaseHelper.instance.database;
+    await db.transaction((txn) async {
+      await SyncTombstones.record('book_characters', id, txn);
+      await _bookCharacterDao.permanentDelete(id);
+    });
     await ImagePathHelper.instance.deleteCharacterImages(id);
-    await _bookCharacterDao.permanentDelete(id);
   }
 
   /// 获取已删除的书籍角色
@@ -2511,9 +2566,12 @@ class AppProvider extends ChangeNotifier {
 
   /// 彻底删除游戏角色
   Future<void> permanentDeleteGameCharacter(String id) async {
-    await SyncTombstones.record('game_characters', id);
+    final db = await DatabaseHelper.instance.database;
+    await db.transaction((txn) async {
+      await SyncTombstones.record('game_characters', id, txn);
+      await _gameCharacterDao.permanentDelete(id);
+    });
     await ImagePathHelper.instance.deleteCharacterImages(id);
-    await _gameCharacterDao.permanentDelete(id);
   }
 
   /// 获取已删除的游戏角色

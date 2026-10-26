@@ -46,6 +46,7 @@ class _BangumiSearchPageBodyState extends State<BangumiSearchPageBody> {
   bool _loading = false;
   bool _loadingMore = false;
   bool _tokenInvalid = false;
+  int _callSeq = 0; // 请求代次，旧响应作废
 
   bool get _hasMore => _list.length < _total;
 
@@ -79,6 +80,10 @@ class _BangumiSearchPageBodyState extends State<BangumiSearchPageBody> {
     setState(() {
       _query = keyword;
       _hasSearched = true;
+      _list = [];
+      _offset = 0;
+      _total = 0;
+      _loadingMore = false;
     });
     _userPrefs.addSearchHistory(keyword);
     _history = _userPrefs.searchHistory;
@@ -86,8 +91,9 @@ class _BangumiSearchPageBodyState extends State<BangumiSearchPageBody> {
   }
 
   Future<void> _search(String keyword, int offset) async {
+    final callSeq = ++_callSeq;
     if (_userPrefs.bangumiAccessToken.isEmpty) {
-      ToastUtil.show(context, '请先在设置中配置 Bangumi Token'.tr);
+      if (callSeq == _callSeq) ToastUtil.show(context, '请先在设置中配置 Bangumi Token'.tr);
       return;
     }
 
@@ -101,7 +107,7 @@ class _BangumiSearchPageBodyState extends State<BangumiSearchPageBody> {
 
     try {
       final data = await _bgm.searchSubjects(keyword, offset);
-      if (!mounted) return;
+      if (!mounted || callSeq != _callSeq) return;
       final list = (data['data'] as List? ?? [])
           .map((e) => e as Map<String, dynamic>)
           .toList();
@@ -116,12 +122,12 @@ class _BangumiSearchPageBodyState extends State<BangumiSearchPageBody> {
         _tokenInvalid = false;
       });
     } on BangumiAuthException {
-      if (mounted) setState(() => _tokenInvalid = true);
+      if (mounted && callSeq == _callSeq) setState(() => _tokenInvalid = true);
     } on BangumiNetworkException {
-      if (mounted) ToastUtil.show(context, '搜索失败，请检查网络'.tr);
+      if (mounted && callSeq == _callSeq) ToastUtil.show(context, '搜索失败，请检查网络'.tr);
     }
 
-    if (mounted) {
+    if (mounted && callSeq == _callSeq) {
       setState(() {
         _loading = false;
         _loadingMore = false;

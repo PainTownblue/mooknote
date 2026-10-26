@@ -15,6 +15,10 @@ class FrostedBackground extends StatelessWidget {
       // 无封面兜底：纯色玻璃底
       return const ColoredBox(color: Color(0xFF121418));
     }
+    // 模糊背景无需原图分辨率，按屏幕物理宽解码并封顶，避免超大封面解码 OOM
+    final mq = MediaQuery.of(context);
+    final decodeWidth =
+        (mq.size.width * mq.devicePixelRatio).clamp(1, 1080).toInt();
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -23,6 +27,7 @@ class FrostedBackground extends StatelessWidget {
           child: Image.file(
             File(coverPath!),
             fit: BoxFit.cover,
+            cacheWidth: decodeWidth,
             errorBuilder: (_, __, ___) =>
                 const ColoredBox(color: Color(0xFF121418)),
           ),

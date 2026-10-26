@@ -101,32 +101,36 @@ class _NoteTabPageState extends State<NoteTabPage> {
     }
   }
 
+  int _loadSeq = 0;
+
   Future<void> _loadFirst() async {
+    final seq = ++_loadSeq;
     _initialized = true;
     setState(() { _isLoading = true; _offset = 0; _hasMore = true; });
     final sortMode = UserPrefs().noteSortMode;
     try {
       final list = await context.read<AppProvider>().loadNotesPaged(offset: 0, sortMode: sortMode);
-      if (!mounted) return;
+      if (!mounted || seq != _loadSeq) return;
       setState(() { _items.clear(); _items.addAll(list); _offset = list.length; _hasMore = list.length >= 20; _isLoading = false; });
     } catch (e) {
       debugPrint('[NoteTab] 首屏加载失败: $e');
-      if (!mounted) return;
+      if (!mounted || seq != _loadSeq) return;
       setState(() { _isLoading = false; _hasMore = false; });
     }
   }
 
   Future<void> _loadMore() async {
     if (_isLoading || !_hasMore) return;
+    final seq = ++_loadSeq;
     setState(() => _isLoading = true);
     final sortMode = UserPrefs().noteSortMode;
     try {
       final list = await context.read<AppProvider>().loadNotesPaged(offset: _offset, sortMode: sortMode);
-      if (!mounted) return;
+      if (!mounted || seq != _loadSeq) return;
       setState(() { _items.addAll(list); _offset += list.length; _hasMore = list.length >= 20; _isLoading = false; });
     } catch (e) {
       debugPrint('[NoteTab] 分页加载失败: $e');
-      if (!mounted) return;
+      if (!mounted || seq != _loadSeq) return;
       setState(() => _isLoading = false);
     }
   }

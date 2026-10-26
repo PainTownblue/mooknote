@@ -18,6 +18,8 @@ class PlaylistAddItemPage extends StatefulWidget {
 class _PlaylistAddItemPageState extends State<PlaylistAddItemPage> {
   final _searchController = TextEditingController();
   List<String> _existingItemIds = [];
+  // 正在添加/移除的条目，防止 await 期间连点造成重复插入
+  final Set<String> _busyItemIds = {};
   String _keyword = '';
   bool _loading = true;
 
@@ -170,9 +172,21 @@ class _PlaylistAddItemPageState extends State<PlaylistAddItemPage> {
 
     return GestureDetector(
       onTap: () async {
+        // 防止快速连点：await 期间集合尚未更新，会重复插入/删除
+        if (_busyItemIds.contains(item.id)) return;
+        _busyItemIds.add(item.id);
+        try {
         if (isAdded) {
           final playlistItems = await provider.getPlaylistItems(widget.playlist.id);
-          final match = playlistItems.firstWhere((pi) => pi.itemId == item.id);
+          PlaylistItem? match;
+          for (final pi in playlistItems) {
+            if (pi.itemId == item.id) { match = pi; break; }
+          }
+          // 条目可能已被同步或其他页面删除
+          if (match == null) {
+            if (mounted) setState(() => _existingItemIds.remove(item.id));
+            return;
+          }
           await provider.removePlaylistItem(match.id, widget.playlist.id);
           if (!mounted) return;
           setState(() {
@@ -190,6 +204,9 @@ class _PlaylistAddItemPageState extends State<PlaylistAddItemPage> {
           setState(() {
             _existingItemIds.add(item.id);
           });
+        }
+        } finally {
+          _busyItemIds.remove(item.id);
         }
       },
       child: Container(

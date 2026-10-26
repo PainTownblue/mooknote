@@ -621,20 +621,30 @@ class BackupService {
   }
 
   /// DB 恢复成功后，把暂存图片搬入正式目录（覆盖同名文件）
-  Future<void> _moveStagedImages(String stagingDirPath, Map<String, String> imagePathMap) async {
+  /// 搬入暂存图片，返回失败张数。单张失败不中断其余图片，
+  /// 失败的暂存文件由调用方决定保留（不能直接清理暂存目录，否则图片永久丢失）
+  Future<int> _moveStagedImages(String stagingDirPath, Map<String, String> imagePathMap) async {
     final stagingImagesDir = Directory(path.join(stagingDirPath, 'images'));
+    var failures = 0;
     for (final entry in imagePathMap.entries) {
       final staged = File(path.join(stagingImagesDir.path, entry.key));
       if (!await staged.exists()) continue;
       final target = File(entry.value);
-      if (!await target.parent.exists()) await target.parent.create(recursive: true);
       try {
-        await staged.rename(target.path);
-      } catch (_) {
-        // 跨设备等 rename 失败场景退化为复制
-        await staged.copy(target.path);
+        if (!await target.parent.exists()) await target.parent.create(recursive: true);
+        try {
+          await staged.rename(target.path);
+        } catch (_) {
+          // 跨设备等 rename 失败场景退化为复制
+          await staged.copy(target.path);
+        }
+      } catch (e) {
+        // 磁盘满/IO 错误等：保留暂存文件，继续搬运其余图片
+        failures++;
+        debugPrint('[BackupService] 图片搬运失败 ${entry.key}: $e');
       }
     }
+    return failures;
   }
 
   /// 共享的库表恢复逻辑：清表 → 单事务插回 → 恢复用户信息。
@@ -648,15 +658,24 @@ class BackupService {
     String? stagingDirPath,
   }) async {
     try {
-      return await _restoreBackupDataInner(
+      final result = await _restoreBackupDataInner(
         backupData, imagePathMap, imageCount,
         clearPushAfter: clearPushAfter,
         stagingDirPath: stagingDirPath,
       );
-    } finally {
+      // 有图片搬运失败时保留暂存目录，避免 DB 已指向新路径而图片被永久删除
+      if (stagingDirPath != null && result.imageFailures == 0) {
+        try { await Directory(stagingDirPath).delete(recursive: true); } catch (_) {}
+      } else if (stagingDirPath != null && result.imageFailures > 0) {
+        debugPrint('[BackupService] ${result.imageFailures} 张图片搬运失败，暂存目录已保留: $stagingDirPath');
+      }
+      return result;
+    } catch (e) {
+      // DB 恢复失败：暂存图片无人引用，按原行为清理
       if (stagingDirPath != null) {
         try { await Directory(stagingDirPath).delete(recursive: true); } catch (_) {}
       }
+      rethrow;
     }
   }
 
@@ -888,13 +907,14 @@ class BackupService {
     }
 
     // DB 事务已成功：暂存图片搬入正式目录
+    var imageFailures = 0;
     if (stagingDirPath != null) {
-      await _moveStagedImages(stagingDirPath, imagePathMap);
+      imageFailures = await _moveStagedImages(stagingDirPath, imagePathMap);
     }
 
     // 恢复用户信息
     await _restoreUserInfo(backupData, imagePathMap);
-    return ImportResult.success(_buildStats(data, imageCount));
+    return ImportResult.success(_buildStats(data, imageCount), imageFailures: imageFailures);
   }
 
   // ─── 内部辅助方法 ─────────────────────────────────────
@@ -1223,16 +1243,18 @@ class ImportResult {
   final bool cancelled;
   final String? errorMessage;
   final Map<String, int>? stats;
+  final int imageFailures;
 
   ImportResult._({
     required this.success,
     this.cancelled = false,
     this.errorMessage,
     this.stats,
+    this.imageFailures = 0,
   });
 
-  factory ImportResult.success(Map<String, int> stats) {
-    return ImportResult._(success: true, stats: stats);
+  factory ImportResult.success(Map<String, int> stats, {int imageFailures = 0}) {
+    return ImportResult._(success: true, stats: stats, imageFailures: imageFailures);
   }
 
   factory ImportResult.cancelled() {
@@ -1245,7 +1267,11 @@ class ImportResult {
 
   String get statsText {
     if (stats == null || stats!.isEmpty) return '没有导入任何数据'.tr;
-    return stats!.entries.map((e) => '${e.key.tr}: ${e.value}').join(AppStrings.isEnglish ? ', ' : '，');
+    final text = stats!.entries.map((e) => '${e.key.tr}: ${e.value}').join(AppStrings.isEnglish ? ', ' : '，');
+    if (imageFailures > 0) {
+      return '$text\n${'部分图片恢复失败（{n}张），暂存目录已保留'.trf({'n': imageFailures})}';
+    }
+    return text;
   }
 }
 

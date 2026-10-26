@@ -397,7 +397,7 @@ class _GameDetailPageState extends State<GameDetailPage> {
           if (hasCover)
             Positioned.fill(
               child: Image(
-                image: FileImage(File(game.coverPath!)),
+                image: ResizeImage(FileImage(File(game.coverPath!)), width: 1080),
                 fit: BoxFit.cover, width: double.infinity, height: screenH,
                 repeat: ImageRepeat.repeatY,
               ),
@@ -560,7 +560,7 @@ class _GameDetailPageState extends State<GameDetailPage> {
                 Positioned.fill(
                   child: hasCover
                       ? Image(
-                          image: FileImage(File(game.coverPath!)),
+                          image: ResizeImage(FileImage(File(game.coverPath!)), width: 1080),
                           fit: BoxFit.cover)
                       : Container(color: colors.surfaceContainerHighest),
                 ),

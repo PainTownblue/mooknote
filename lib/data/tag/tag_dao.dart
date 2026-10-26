@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import '../database_helper.dart';
@@ -42,7 +43,7 @@ class TagDao {
       'name': name,
       'type': type,
       'parent_id': parentId,
-      'created_at': DateTime.now().toIso8601String(),
+      'created_at': DateTime.now().toUtc().toIso8601String(),
     });
     return id;
   });
@@ -137,6 +138,8 @@ class TagDao {
           await _cascadeRenameInBooks(txn, oldName, newName);
         case 'note_tag':
           await _cascadeRenameInNotes(txn, oldName, newName);
+        case 'game_genre':
+          await _cascadeRenameInGames(txn, oldName, newName);
       }
     });
 
@@ -165,6 +168,8 @@ class TagDao {
             await _cascadeRenameInBooks(txn, name, replacementName);
           case 'note_tag':
             await _cascadeRenameInNotes(txn, name, replacementName);
+          case 'game_genre':
+            await _cascadeRenameInGames(txn, name, replacementName);
         }
       } else if (replacementName == null) {
         switch (type) {
@@ -174,6 +179,8 @@ class TagDao {
             await _cascadeDeleteFromBooks(txn, name);
           case 'note_tag':
             await _cascadeDeleteFromNotes(txn, name);
+          case 'game_genre':
+            await _cascadeDeleteFromGames(txn, name);
         }
       }
 
@@ -204,12 +211,12 @@ class TagDao {
     final existing = await txn.query('tags',
         where: 'name = ? AND type = ?', whereArgs: [name, type]);
     if (existing.isEmpty) {
-      final id = 'tag_${DateTime.now().millisecondsSinceEpoch}';
+      final id = 'tag_${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(1 << 20)}';
       await txn.insert('tags', {
         'id': id,
         'name': name,
         'type': type,
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': DateTime.now().toUtc().toIso8601String(),
       });
     }
   }
@@ -219,11 +226,11 @@ class TagDao {
   Future<void> _cascadeRenameInMovies(Transaction txn, String oldName, String newName) async {
     final movies = await txn.query('movies',
         where: "genres LIKE ?", whereArgs: ['%$oldName%']);
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     for (final row in movies) {
       final genres = _parseList(row['genres']);
       if (!genres.contains(oldName)) continue;
-      final updated = genres.map((g) => g == oldName ? newName : g).toList();
+      final updated = _replaceDedup(genres, oldName, newName);
       await txn.update('movies', {
         'genres': jsonEncode(updated),
         'updated_at': now,
@@ -234,11 +241,11 @@ class TagDao {
   Future<void> _cascadeRenameInBooks(Transaction txn, String oldName, String newName) async {
     final books = await txn.query('books',
         where: "genres LIKE ?", whereArgs: ['%$oldName%']);
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     for (final row in books) {
       final genres = _parseList(row['genres']);
       if (!genres.contains(oldName)) continue;
-      final updated = genres.map((g) => g == oldName ? newName : g).toList();
+      final updated = _replaceDedup(genres, oldName, newName);
       await txn.update('books', {
         'genres': jsonEncode(updated),
         'updated_at': now,
@@ -249,11 +256,11 @@ class TagDao {
   Future<void> _cascadeRenameInNotes(Transaction txn, String oldName, String newName) async {
     final notes = await txn.query('notes',
         where: "tags LIKE ?", whereArgs: ['%$oldName%']);
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     for (final row in notes) {
       final tags = _parseList(row['tags']);
       if (!tags.contains(oldName)) continue;
-      final updated = tags.map((t) => t == oldName ? newName : t).toList();
+      final updated = _replaceDedup(tags, oldName, newName);
       await txn.update('notes', {
         'tags': jsonEncode(updated),
         'updated_at': now,
@@ -261,12 +268,37 @@ class TagDao {
     }
   }
 
+  Future<void> _cascadeRenameInGames(Transaction txn, String oldName, String newName) async {
+    final games = await txn.query('games',
+        where: "genres LIKE ?", whereArgs: ['%$oldName%']);
+    final now = DateTime.now().toUtc().toIso8601String();
+    for (final row in games) {
+      final genres = _parseList(row['genres']);
+      if (!genres.contains(oldName)) continue;
+      final updated = _replaceDedup(genres, oldName, newName);
+      await txn.update('games', {
+        'genres': jsonEncode(updated),
+        'updated_at': now,
+      }, where: 'id = ?', whereArgs: [row['id']]);
+    }
+  }
+
+  /// 替换列表元素并去除因替换产生的重复项（如 ["A","B"] 中 A→B 得到 ["B"]）
+  List<String> _replaceDedup(List<String> list, String oldName, String newName) {
+    final result = <String>[];
+    for (final item in list) {
+      final v = item == oldName ? newName : item;
+      if (!result.contains(v)) result.add(v);
+    }
+    return result;
+  }
+
   // ====== 级联删除 ======
 
   Future<void> _cascadeDeleteFromMovies(Transaction txn, String tagName) async {
     final movies = await txn.query('movies',
         where: "genres LIKE ?", whereArgs: ['%$tagName%']);
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     for (final row in movies) {
       final genres = _parseList(row['genres']);
       if (!genres.contains(tagName)) continue;
@@ -281,7 +313,7 @@ class TagDao {
   Future<void> _cascadeDeleteFromBooks(Transaction txn, String tagName) async {
     final books = await txn.query('books',
         where: "genres LIKE ?", whereArgs: ['%$tagName%']);
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     for (final row in books) {
       final genres = _parseList(row['genres']);
       if (!genres.contains(tagName)) continue;
@@ -296,13 +328,28 @@ class TagDao {
   Future<void> _cascadeDeleteFromNotes(Transaction txn, String tagName) async {
     final notes = await txn.query('notes',
         where: "tags LIKE ?", whereArgs: ['%$tagName%']);
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     for (final row in notes) {
       final tags = _parseList(row['tags']);
       if (!tags.contains(tagName)) continue;
       tags.removeWhere((t) => t == tagName);
       await txn.update('notes', {
         'tags': jsonEncode(tags),
+        'updated_at': now,
+      }, where: 'id = ?', whereArgs: [row['id']]);
+    }
+  }
+
+  Future<void> _cascadeDeleteFromGames(Transaction txn, String tagName) async {
+    final games = await txn.query('games',
+        where: "genres LIKE ?", whereArgs: ['%$tagName%']);
+    final now = DateTime.now().toUtc().toIso8601String();
+    for (final row in games) {
+      final genres = _parseList(row['genres']);
+      if (!genres.contains(tagName)) continue;
+      genres.removeWhere((g) => g == tagName);
+      await txn.update('games', {
+        'genres': jsonEncode(genres),
         'updated_at': now,
       }, where: 'id = ?', whereArgs: [row['id']]);
     }

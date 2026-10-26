@@ -244,7 +244,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
           if (hasCover)
             Positioned.fill(
               child: Image(
-                image: FileImage(File(book.coverPath!)),
+                image: ResizeImage(FileImage(File(book.coverPath!)), width: 1080),
                 fit: BoxFit.cover,
                 width: double.infinity,
                 height: screenH,
@@ -379,7 +379,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
                 Positioned.fill(
                   child: hasCover
                       ? Image(
-                          image: FileImage(File(book.coverPath!)),
+                          image: ResizeImage(FileImage(File(book.coverPath!)), width: 1080),
                           fit: BoxFit.cover)
                       : Container(color: colors.surfaceContainerHighest),
                 ),

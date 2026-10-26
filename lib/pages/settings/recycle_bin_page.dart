@@ -325,7 +325,11 @@ class _RecycleBinPageState extends State<RecycleBinPage> {
       background: _buildDismissBackground(),
       confirmDismiss: (_) async =>
           _showConfirmDialog('确定要彻底删除吗？此操作不可恢复。'.tr),
-      onDismissed: (_) => _permanentDelete(item),
+      // 确认弹窗已在 confirmDismiss 完成，这里直接执行删除，避免二次确认
+      onDismissed: (_) {
+        setState(() => _allItems.removeWhere((e) => e.id == item.id && e.type == item.type));
+        _doPermanentDelete(item);
+      },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         decoration: BoxDecoration(
@@ -495,6 +499,8 @@ class _RecycleBinPageState extends State<RecycleBinPage> {
     );
     if (confirmed != true || !mounted) return;
     final provider = context.read<AppProvider>();
+    // 清空回收站进行中，单条恢复可能被随后的批量硬删覆盖
+    if (provider.isClearingRecycleBin) return;
     switch (item.type) {
       case _ItemType.movie:
         await provider.restoreMovie(item.id);
@@ -543,8 +549,17 @@ class _RecycleBinPageState extends State<RecycleBinPage> {
     final confirmed =
         await _showConfirmDialog('确定要彻底删除吗？此操作不可恢复。'.tr);
     if (!confirmed) return;
+    await _doPermanentDelete(item);
+  }
+
+  Future<void> _doPermanentDelete(_DeletedItem item) async {
     if (!mounted) return;
     final provider = context.read<AppProvider>();
+    // 清空回收站进行中，跳过单条删除（批量操作会统一处理）
+    if (provider.isClearingRecycleBin) {
+      _loadDeletedItems();
+      return;
+    }
     switch (item.type) {
       case _ItemType.movie:
         await provider.permanentDeleteMovie(item.id);

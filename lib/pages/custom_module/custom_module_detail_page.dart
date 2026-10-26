@@ -355,7 +355,7 @@ class _CustomModuleDetailPageState extends State<CustomModuleDetailPage> {
       final d = DateTime.tryParse(v.toString());
       return '${f.label}：${d != null ? _formatDate(d) : v}';
     }
-    final count = '{n} 次'.trf({'n': (v as num).toInt()});
+    final count = '{n} 次'.trf({'n': num.tryParse(v.toString())?.toInt() ?? 0});
     return '${f.label}：$count';
   }
 

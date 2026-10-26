@@ -1040,9 +1040,13 @@ class IncSyncService {
 
   // ── 推送 ────────────────────────────────────────────
 
-  /// 分集/章节/关卡历史上使用过软删，查询推送时需排除残留的 is_deleted=1 行
+  /// 历史上使用过软删的子表，查询推送时需排除残留的 is_deleted=1 行，
+  /// 否则已删海报/截图会被整组打包在他端复活、图片文件永久残留
   static String? _softDeleteGroupWhere(String table) {
-    return const {'movie_episodes', 'book_chapters', 'game_levels'}.contains(table)
+    return const {
+      'movie_episodes', 'book_chapters', 'game_levels',
+      'movie_posters', 'game_screenshots',
+    }.contains(table)
         ? 'is_deleted = 0'
         : null;
   }

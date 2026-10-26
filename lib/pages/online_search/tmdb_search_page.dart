@@ -30,6 +30,7 @@ class _TmdbSearchPageBodyState extends State<TmdbSearchPageBody> {
   bool _loading = false;
   bool _loadingMore = false;
   bool _tokenInvalid = false;
+  int _callSeq = 0; // 请求代次，旧响应作废
 
   @override
   void initState() {
@@ -61,6 +62,10 @@ class _TmdbSearchPageBodyState extends State<TmdbSearchPageBody> {
     setState(() {
       _query = keyword;
       _hasSearched = true;
+      _list = [];
+      _page = 1;
+      _pageCount = 1;
+      _loadingMore = false;
     });
     _userPrefs.addSearchHistory(keyword);
     _history = _userPrefs.searchHistory;
@@ -68,8 +73,9 @@ class _TmdbSearchPageBodyState extends State<TmdbSearchPageBody> {
   }
 
   Future<void> _search(String keyword, int page) async {
+    final callSeq = ++_callSeq;
     if (_userPrefs.tmdbApiToken.isEmpty) {
-      ToastUtil.show(context, '请先在设置中配置 TMDB Token'.tr);
+      if (callSeq == _callSeq) ToastUtil.show(context, '请先在设置中配置 TMDB Token'.tr);
       return;
     }
 
@@ -84,7 +90,7 @@ class _TmdbSearchPageBodyState extends State<TmdbSearchPageBody> {
     try {
       await _tmdb.ensureGenres();
       final data = await _tmdb.searchMulti(keyword, page);
-      if (!mounted) return;
+      if (!mounted || callSeq != _callSeq) return;
       final list = (data['results'] as List? ?? [])
           .map((e) => e as Map<String, dynamic>)
           .toList();
@@ -94,17 +100,17 @@ class _TmdbSearchPageBodyState extends State<TmdbSearchPageBody> {
         } else {
           _list.addAll(list);
         }
-        _page = data['page'] ?? page;
-        _pageCount = data['total_pages'] ?? page;
+        _page = (data['page'] as num?)?.toInt() ?? page;
+        _pageCount = (data['total_pages'] as num?)?.toInt() ?? page;
         _tokenInvalid = false;
       });
     } on TmdbAuthException {
-      if (mounted) setState(() => _tokenInvalid = true);
+      if (mounted && callSeq == _callSeq) setState(() => _tokenInvalid = true);
     } on TmdbNetworkException {
-      if (mounted) ToastUtil.show(context, '搜索失败，请检查网络'.tr);
+      if (mounted && callSeq == _callSeq) ToastUtil.show(context, '搜索失败，请检查网络'.tr);
     }
 
-    if (mounted) {
+    if (mounted && callSeq == _callSeq) {
       setState(() {
         _loading = false;
         _loadingMore = false;

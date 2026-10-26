@@ -65,7 +65,7 @@ class PlaylistDao {
       await txn.delete('playlist_items', where: 'playlist_id = ?', whereArgs: [id]);
       return await txn.update(
         'playlists',
-        {'is_deleted': 1, 'updated_at': DateTime.now().toIso8601String()},
+        {'is_deleted': 1, 'updated_at': DateTime.now().toUtc().toIso8601String()},
         where: 'id = ?',
         whereArgs: [id],
       );
@@ -177,7 +177,7 @@ class PlaylistDao {
     }
     await db.update(
       'playlists',
-      {'item_count': count, 'updated_at': DateTime.now().toIso8601String()},
+      {'item_count': count, 'updated_at': DateTime.now().toUtc().toIso8601String()},
       where: 'id = ?',
       whereArgs: [playlistId],
     );
@@ -260,7 +260,7 @@ class PlaylistDao {
       'AND playlist_id IN (SELECT id FROM playlists WHERE type = ? OR type = \'all\')',
       [itemId, type],
     );
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     for (final row in affected) {
       final pid = row['playlist_id'] as String;
       await db.rawUpdate(

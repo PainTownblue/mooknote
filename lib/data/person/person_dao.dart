@@ -110,7 +110,7 @@ class PersonDao {
     final db = await _dbHelper.database;
     return await db.update(
       'people',
-      {'is_deleted': 1, 'updated_at': DateTime.now().toIso8601String()},
+      {'is_deleted': 1, 'updated_at': DateTime.now().toUtc().toIso8601String()},
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -121,7 +121,7 @@ class PersonDao {
     final db = await _dbHelper.database;
     return await db.update(
       'people',
-      {'is_deleted': 0, 'updated_at': DateTime.now().toIso8601String()},
+      {'is_deleted': 0, 'updated_at': DateTime.now().toUtc().toIso8601String()},
       where: 'id = ?',
       whereArgs: [id],
     );

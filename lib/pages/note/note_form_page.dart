@@ -35,6 +35,7 @@ class _NoteFormPageState extends State<NoteFormPage> {
   List<String> _tags = [];
   List<String> _images = []; // 图片路径列表
   bool _isEditing = false;
+  bool _saveInProgress = false; // 手动保存与自动保存互斥，防止重复新增
   String? _tempNoteId; // 新建模式时使用的临时笔记ID
   Timer? _autoSaveTimer;
   Timer? _saveStatusTimer;
@@ -92,6 +93,8 @@ class _NoteFormPageState extends State<NoteFormPage> {
     }
     final title = _titleController.text.trim();
     if (title.isEmpty && content.isEmpty) return;
+    if (_saveInProgress) return;
+    _saveInProgress = true;
 
     try {
       final now = DateTime.now();
@@ -146,6 +149,8 @@ class _NoteFormPageState extends State<NoteFormPage> {
       }
     } catch (_) {
       // 自动保存失败静默处理
+    } finally {
+      _saveInProgress = false;
     }
   }
 
@@ -567,6 +572,11 @@ class _NoteFormPageState extends State<NoteFormPage> {
 
   Future<void> _saveNote() async {
     _autoSaveTimer?.cancel();
+    // 等待进行中的自动保存完成，避免两条路径同时进入新增分支
+    while (_saveInProgress) {
+      await Future.delayed(const Duration(milliseconds: 30));
+      if (!mounted) return;
+    }
     String content;
     if (_editorKey.currentState != null && _editorKey.currentState!.isReady) {
       content = (await _editorKey.currentState!.getValue()).trim();
@@ -580,6 +590,7 @@ class _NoteFormPageState extends State<NoteFormPage> {
       ToastUtil.show(context, '标题或内容不能为空'.tr);
       return;
     }
+    _saveInProgress = true;
 
     try {
     final now = DateTime.now();
@@ -642,6 +653,7 @@ class _NoteFormPageState extends State<NoteFormPage> {
     if (!mounted) return;
     Navigator.pop(context);
     } catch (e) {
+      _saveInProgress = false;
       if (!mounted) return;
       ToastUtil.show(context, '保存失败: {e}'.trf({'e': e}));
     }

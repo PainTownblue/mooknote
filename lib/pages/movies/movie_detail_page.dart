@@ -267,7 +267,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
           if (hasPoster)
             Positioned.fill(
               child: Image(
-                image: FileImage(File(movie.posterPath!)),
+                image: ResizeImage(FileImage(File(movie.posterPath!)), width: 1080),
                 fit: BoxFit.cover, width: double.infinity, height: screenH,
                 repeat: ImageRepeat.repeatY,
               ),
@@ -424,7 +424,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                 Positioned.fill(
                   child: hasPoster
                       ? Image(
-                          image: FileImage(File(movie.posterPath!)),
+                          image: ResizeImage(FileImage(File(movie.posterPath!)), width: 1080),
                           fit: BoxFit.cover)
                       : Container(color: colors.surfaceContainerHighest),
                 ),

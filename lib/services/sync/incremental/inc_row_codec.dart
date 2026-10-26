@@ -21,7 +21,17 @@ class IncRowCodec {
   static bool isImagePath(String v) => v.replaceAll('\\', '/').contains('/images/');
 
   /// 逻辑路径 → 本机绝对路径
-  String localPathOf(String logical) => p.join(imagesRoot, logical);
+  /// 过滤 `..`/盘符/绝对路径，防止不可信远端通过图片路径穿越写入 images 目录之外（ZipSlip）
+  String localPathOf(String logical) => p.join(imagesRoot, sanitizeLogical(logical));
+
+  /// 规整逻辑路径：统一分隔符后剔除空段、`.` 与 `..`，使其只能落在 images 根目录之内
+  static String sanitizeLogical(String logical) {
+    final normalized = logical.replaceAll('\\', '/');
+    return normalized
+        .split('/')
+        .where((s) => s.isNotEmpty && s != '.' && s != '..')
+        .join('/');
+  }
 
   /// 将远程行内图片路径改写为本机绝对路径
   Map<String, dynamic> localize(Map<String, dynamic> row, IncEntitySpec spec) {
