@@ -110,20 +110,20 @@
 
 ## 技术栈
 
-| 层级     | 技术                                                                                     |
-| :------- | :--------------------------------------------------------------------------------------- |
-| 框架     | Flutter 3.5+ / Dart 3.5+                                                                 |
-| 状态管理 | Provider（单一`AppProvider` ChangeNotifier）                                           |
-| 本地存储 | sqflite（`mooknote.db`，已迭代至 v53 迁移链）                                           |
-| 远程同步 | 自建 Flask 服务端 + WebDAV（全量 / LWW 增量双向同步）                                    |
-| 图表     | fl_chart                                                                                 |
-| Markdown | flutter_markdown_plus                                                                    |
-| WebView  | flutter_inappwebview（豆瓣等网页抓取）                                                   |
-| 视频播放 | media_kit（预告片播放）                                                                  |
-| 数据导出 | excel / archive（Excel 与 zip 备份）                                                     |
-| 数据源   | 豆瓣 / TMDB / Bangumi / Steam 解析                                                       |
-| 动态取色 | dynamic_color（Android 12+ Monet）                                                       |
-| 国际化   | 轻量自建 i18n（中文为 key，中英双语）                                                    |
+| 层级     | 技术                                                  |
+| :------- | :---------------------------------------------------- |
+| 框架     | Flutter 3.5+ / Dart 3.5+                              |
+| 状态管理 | Provider（单一`AppProvider` ChangeNotifier）        |
+| 本地存储 | sqflite（`mooknote.db`，已迭代至 v53 迁移链）       |
+| 远程同步 | 自建 Flask 服务端 + WebDAV（全量 / LWW 增量双向同步） |
+| 图表     | fl_chart                                              |
+| Markdown | flutter_markdown_plus                                 |
+| WebView  | flutter_inappwebview（豆瓣等网页抓取）                |
+| 视频播放 | media_kit（预告片播放）                               |
+| 数据导出 | excel / archive（Excel 与 zip 备份）                  |
+| 数据源   | 豆瓣 / TMDB / Bangumi / Steam 解析                    |
+| 动态取色 | dynamic_color（Android 12+ Monet）                    |
+| 国际化   | 轻量自建 i18n（中文为 key，中英双语）                 |
 
 ## 项目结构
 
