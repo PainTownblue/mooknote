@@ -820,6 +820,9 @@ class _BookFormPageState extends State<BookFormPage> {
           publishDate: _publishDate, startDate: _startDate, finishDate: _finishDate, readCount: _readCount, updatedAt: now,
         );
         await context.read<AppProvider>().updateBook(updatedBook);
+        if (!mounted) return;
+        // 状态迁移（想读→已读等）不改变总数，显式通知状态页就地移除/归入
+        context.read<AppProvider>().setEditRefresh(updatedBook.id);
       }
 
       if (!mounted) return;

@@ -20,8 +20,9 @@
 - 影视分类：电影 / 电视剧 / 动漫 / 综艺 / 纪录片 / 短片
 - 影评撰写与管理，支持短评与长评，星级评分
 - 影视海报墙浏览（瀑布流布局），支持多张海报管理与全屏浏览
+- 剧集集数管理与观看进度（单集信息编辑、已看集数记录）
 - 影视分享（生成海报名场面风格分享卡片）
-- 豆瓣网页抓取，自动填充影视信息
+- 豆瓣网页抓取、TMDB / Bangumi 在线数据源，自动填充影视信息
 - 影视状态筛选（想看 / 在看 / 已看）
 - 多种排序方式（更新时间 / 创建时间 / 评分）
 - 多种列表布局（海报网格 / 列表 / 大图卡片 / 年份网格）
@@ -32,6 +33,7 @@
 - 书籍增删改查，支持封面、作者、出版社、ISBN 等信息
 - 书评撰写与管理，支持短评与长评
 - 书摘 / 摘录记录（按章节管理，支持批注）
+- 书籍章节管理与阅读进度
 - 书籍分享卡片
 - 书籍状态筛选（想读 / 在读 / 已读）
 - 多种排序方式（更新时间 / 创建时间 / 评分）
@@ -44,6 +46,8 @@
 - 游戏分类：数字版 / 实体版 / 订阅制
 - 游戏评测撰写与管理，支持截图上传与展示
 - 游戏截图画廊浏览
+- 游戏关卡管理与通关进度记录
+- Steam 数据解析填充
 - 游戏分享卡片
 - 游戏状态筛选（想玩 / 在玩 / 已通关 / 弃坑）
 - 多种排序方式（更新时间 / 创建时间 / 评分）
@@ -85,12 +89,12 @@
 - 随机漫步（随机回顾影视 / 书籍 / 笔记内容）
 - 与你相遇（使用天数、总记录数、字数、图片数统计）
 - 回收站（软删除，支持恢复和彻底删除影视、书籍、笔记、游戏、影评、书评、书摘、游戏评测）
-- WebDAV 云同步（支持上传 / 下载 / 双向同步 / 定时自动同步）
+- WebDAV 云同步（全量 zip 备份上传 / 下载恢复 / 增量双向同步 / 定时自动同步，兼容反向代理与坚果云等 WebDAV 服务）
 - 本地备份与恢复（zip 归档，支持手动导出 / 导入，支持 Excel 导出图片）
 - 定时自动备份（本地备份，可配置开关，保留最近 5 个）
 - 缓存清理（分类分析后手动清理：孤立图片 / 临时文件 / 系统缓存 / 空文件夹）
 - 暗色 / 亮色 / 跟随系统主题切换
-- 6 套配色方案 + Android 12+ Monet 动态取色
+- 7 套配色方案（经典 / 靛蓝 / 薄荷 / 琥珀 / 玫瑰 / 紫罗兰 / 米黄）+ Android 12+ Monet 动态取色，暗色模式完整适配
 - Material 3 极简主义设计风格
 - 中英双语切换（英文资源缺失时自动回退中文）
 - 自定义应用图标
@@ -103,8 +107,6 @@
 
 - **Android** — 主要支持平台
 - **Android Pad** — 平板自适应布局：常驻侧边栏 + NavigationRail，宽屏时列表-详情并排显示
-- **Windows** — 桌面端完整支持：隐藏原生标题栏、FFI 本地数据库、宽屏主从布局适配
-- **Linux** — 桌面端支持：FFI 本地数据库，与 Windows 共用桌面布局
 
 ## 技术栈
 
@@ -112,14 +114,14 @@
 | :------- | :--------------------------------------------------------------------------------------- |
 | 框架     | Flutter 3.5+ / Dart 3.5+                                                                 |
 | 状态管理 | Provider（单一`AppProvider` ChangeNotifier）                                           |
-| 本地存储 | sqflite（`mooknote.db`，已迭代至 v49 迁移链；Windows / Linux 端走 sqflite_common_ffi） |
-| 远程同步 | 自建 Flask 服务端 + WebDAV                                                               |
+| 本地存储 | sqflite（`mooknote.db`，已迭代至 v53 迁移链）                                           |
+| 远程同步 | 自建 Flask 服务端 + WebDAV（全量 / LWW 增量双向同步）                                    |
 | 图表     | fl_chart                                                                                 |
 | Markdown | flutter_markdown_plus                                                                    |
-| WebView  | flutter_inappwebview（豆瓣网页抓取）                                                     |
-| 视频播放 | media_kit（视频播放）                                                                    |
+| WebView  | flutter_inappwebview（豆瓣等网页抓取）                                                   |
+| 视频播放 | media_kit（预告片播放）                                                                  |
 | 数据导出 | excel / archive（Excel 与 zip 备份）                                                     |
-| 桌面适配 | window_manager                                                                           |
+| 数据源   | 豆瓣 / TMDB / Bangumi / Steam 解析                                                       |
 | 动态取色 | dynamic_color（Android 12+ Monet）                                                       |
 | 国际化   | 轻量自建 i18n（中文为 key，中英双语）                                                    |
 
@@ -127,17 +129,21 @@
 
 ```
 lib/
-├── main.dart                # 入口：初始化、主题、桌面端配置
-├── models/                  # 数据模型（data_models.dart，24 个类）
+├── main.dart                # 入口：初始化、主题、Monet 动态取色、媒体播放器
+├── models/                  # 数据模型（data_models.dart，29 个类）
 ├── providers/               # AppProvider（全局状态）
-├── data/                    # DAO 层（按实体分目录）+ SQLite
+├── data/                    # DAO 层（movie/book/game/note/person/character/
+│                            #   tag/gallery/playlist/custom_module）+ SQLite
 ├── pages/                   # 页面（影视/书籍/游戏/笔记/人物/角色/片单/
 │                            #   自定义分类/探索统计/快捷添加/在线搜索/同步设置等）
-├── services/                # 服务（同步、备份、WebDAV、更新检查等）
+├── services/                # 服务（同步、备份、WebDAV、增量同步、数据源解析、
+│                            #   更新检查、用量统计等）
+│   └── sync/incremental/    # LWW 增量同步（manifest/delta/blobs/墓碑）
 ├── widgets/                 # 共享组件（列表项、编辑器、导航、抽屉等）
-├── utils/                   # 工具（路由、主题、偏好、Excel 导出等）
+├── utils/theme/             # 统一主题构建（配色方案、状态色、毛玻璃主题）
+├── utils/                   # 工具（路由、偏好、图片路径、Excel 导出等）
 └── l10n/                    # 英文文案资源
-server/                      # Python Flask 服务端（ 同步 / 管理 API）
+server/                      # Python Flask 服务端（同步 / 管理 API）
 ```
 
 ## 数据存储
@@ -152,8 +158,8 @@ server/                      # Python Flask 服务端（ 同步 / 管理 API）
 
 - Flutter SDK 3.5+
 - Dart SDK 3.5+
-- Android minSdk 21+（Android 端）
-- Python 3.8+（服务端）
+- Android minSdk 21+（目标 SDK 35，Android 15 强制 edge-to-edge）
+- Python 3.8+（服务端，可选）
 
 ## 快速开始
 
@@ -166,12 +172,8 @@ cd mooknote
 flutter pub get
 
 flutter devices
-# 运行
+# 运行（连接 Android 设备或启动模拟器）
 flutter run -d emulator-5554
-
-flutter run -d windows
-
-flutter run -d linux
 ```
 
 如果 `pub get` 失败，可尝试设置国内镜像：
@@ -198,10 +200,6 @@ flutter pub get
 flutter build apk --release
 # 多版本构建
 flutter build apk --release --split-per-abi
-# 构建 Windows 版本
-flutter build windows --release
-# 构建linux版本
-flutter build linux --release
 # 只构建 arm64-v8a
 flutter build apk --release --target-platform android-arm64
 # 构建 App Bundle（Google Play）

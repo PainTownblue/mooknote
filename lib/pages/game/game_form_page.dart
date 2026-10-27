@@ -1298,6 +1298,9 @@ class _GameFormPageState extends State<GameFormPage> {
         await context.read<AppProvider>().updateGame(updatedGame);
         if (!mounted) return;
         await _syncCompletions(widget.game!.id, now);
+        if (!mounted) return;
+        // 状态迁移（想玩→已通关等）不改变总数，显式通知状态页就地移除/归入
+        context.read<AppProvider>().setEditRefresh(updatedGame.id);
       }
 
       if (!mounted) return;

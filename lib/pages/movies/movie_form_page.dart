@@ -1289,6 +1289,9 @@ class _MovieFormPageState extends State<MovieFormPage> {
       );
 
       await context.read<AppProvider>().updateMovie(updatedMovie);
+      if (!mounted) return;
+      // 通知状态页就地移除/归入（想看→已看等状态迁移不会改变总数，必须显式发信号）
+      context.read<AppProvider>().setEditRefresh(updatedMovie.id);
     }
 
     if (!mounted) return;
