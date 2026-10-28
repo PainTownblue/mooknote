@@ -11,6 +11,7 @@ import '../../providers/app_provider.dart';
 import '../../services/bangumi_service.dart';
 import '../../utils/image_path_helper.dart';
 import '../../utils/toast_util.dart';
+import '../../utils/user_prefs.dart';
 import '../../widgets/app_overlay.dart';
 
 /// Bangumi 人物收藏/关联相关 UI：
@@ -250,11 +251,16 @@ Future<Person?> upsertBangumiPerson(
 
   if (target == null) {
     final id = const Uuid().v4();
+    final photoUrl = bangumiImageUrl(detail['images'] as Map<String, dynamic>?);
     final photo = await downloadBangumiImage(
-        bangumiImageUrl(detail['images'] as Map<String, dynamic>?),
+        photoUrl,
         await ImagePathHelper.instance
             .getPersonPhotoPath(id, 'photo_${DateTime.now().millisecondsSinceEpoch}.jpg'));
     if (!context.mounted) return null;
+    // 记录头像来源，再次收藏时不再提示头像覆盖
+    if (photo != null && photoUrl != null) {
+      UserPrefs().setBangumiPersonPhoto(id, photoUrl);
+    }
     final person = Person(
       id: id,
       name: displayName,
@@ -287,7 +293,9 @@ Future<Person?> upsertBangumiPerson(
       };
 
   final conflicts = <({String key, String label, String detail})>[
-    if (photoUrl != null && (target.photoPath?.isNotEmpty ?? false))
+    if (photoUrl != null &&
+        (target.photoPath?.isNotEmpty ?? false) &&
+        UserPrefs().bangumiPersonPhotos[target.id] != photoUrl)
       (
         key: 'photo',
         label: '头像'.tr,
@@ -340,7 +348,11 @@ Future<Person?> upsertBangumiPerson(
         await ImagePathHelper.instance.getPersonPhotoPath(
             target.id, 'photo_${DateTime.now().millisecondsSinceEpoch}.jpg'));
     if (!context.mounted) return null;
-    if (downloaded != null) photoPath = downloaded;
+    if (downloaded != null) {
+      photoPath = downloaded;
+      // 覆盖成功，同步记录头像来源
+      UserPrefs().setBangumiPersonPhoto(target.id, photoUrl);
+    }
   }
 
   // 职业/别名始终合并；用中文名收藏时原名补入别名
@@ -838,8 +850,7 @@ Future<String> saveBangumiCharacterToWork(
           if (cn.isEmpty) return 'exists';
           final merged = <String>{
             ...m.aliases,
-            if (rawName.isNotEmpty && rawName != cn && rawName != m.name)
-              rawName,
+            if (rawName.isNotEmpty && rawName != cn) rawName,
           }.toList();
           final fillRole =
               (m.role == null || m.role!.isEmpty) && relation.isNotEmpty;
@@ -885,8 +896,7 @@ Future<String> saveBangumiCharacterToWork(
           if (cn.isEmpty) return 'exists';
           final merged = <String>{
             ...m.aliases,
-            if (rawName.isNotEmpty && rawName != cn && rawName != m.name)
-              rawName,
+            if (rawName.isNotEmpty && rawName != cn) rawName,
           }.toList();
           final fillRole =
               (m.role == null || m.role!.isEmpty) && relation.isNotEmpty;
@@ -931,8 +941,7 @@ Future<String> saveBangumiCharacterToWork(
           if (cn.isEmpty) return 'exists';
           final merged = <String>{
             ...m.aliases,
-            if (rawName.isNotEmpty && rawName != cn && rawName != m.name)
-              rawName,
+            if (rawName.isNotEmpty && rawName != cn) rawName,
           }.toList();
           final fillRole =
               (m.role == null || m.role!.isEmpty) && relation.isNotEmpty;

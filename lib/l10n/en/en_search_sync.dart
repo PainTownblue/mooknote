@@ -213,6 +213,7 @@ const Map<String, String> enSearchSync = {
   '已选 {n} 个': '{n} selected',
   '同时收藏 CV 人物': 'Also save CV to People',
   '已保存 {n} 个角色': 'Saved {n} characters',
+  '正在获取中文名称 {n}/{N}': 'Fetching Chinese names {n}/{N}',
   '添加后打开编辑页': 'Open editor after adding',
   '点击想看/在看/看过后，直接弹出自动填好的编辑表单':
       'Tap Want/Watching/Watched to open the pre-filled edit form directly',

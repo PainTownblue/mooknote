@@ -558,6 +558,25 @@ class UserPrefs {
   Future<bool> setBangumiOpenEditorAfterAdd(bool value) =>
       prefs.setBool('bangumiOpenEditorAfterAdd', value);
 
+  /// Bangumi 人物头像来源记录：personId → 图片 URL。
+  /// 用于人物收藏时判断本地头像是否已来自 Bangumi，避免覆盖选择框重复提示
+  Map<String, String> get bangumiPersonPhotos {
+    final raw = prefs.getString('bangumiPersonPhotos');
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      return (jsonDecode(raw) as Map)
+          .map((k, v) => MapEntry(k.toString(), v.toString()));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> setBangumiPersonPhoto(String personId, String url) async {
+    final m = bangumiPersonPhotos;
+    m[personId] = url;
+    await prefs.setString('bangumiPersonPhotos', jsonEncode(m));
+  }
+
   /// 搜索页模式: 0=本地, 1=增强, 2=TMDB, 3=Bangumi（从旧版 lastSearchOnline 迁移）
   int get lastSearchMode =>
       prefs.getInt('lastSearchMode') ?? (lastSearchOnline ? 1 : 0);

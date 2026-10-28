@@ -159,6 +159,38 @@ class _BangumiCharactersPageState extends State<BangumiCharactersPage> {
       ),
       body: Column(
         children: [
+          if (_batching)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: colors.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: colors.primary),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                          '正在获取中文名称 {n}/{N}'.trf({
+                            'n': '$_done',
+                            'N': '${_selected.length}',
+                          }),
+                          style: TextStyle(
+                              fontSize: 13, color: colors.onSurface)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           if (_selecting)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
