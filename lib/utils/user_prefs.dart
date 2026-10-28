@@ -552,6 +552,12 @@ class UserPrefs {
   String get bangumiProxy => prefs.getString('bangumiProxy') ?? '';
   Future<bool> setBangumiProxy(String value) => prefs.setString('bangumiProxy', value);
 
+  /// Bangumi 在线添加后自动打开编辑页（默认关，保持原有静默入库流）
+  bool get bangumiOpenEditorAfterAdd =>
+      prefs.getBool('bangumiOpenEditorAfterAdd') ?? false;
+  Future<bool> setBangumiOpenEditorAfterAdd(bool value) =>
+      prefs.setBool('bangumiOpenEditorAfterAdd', value);
+
   /// 搜索页模式: 0=本地, 1=增强, 2=TMDB, 3=Bangumi（从旧版 lastSearchOnline 迁移）
   int get lastSearchMode =>
       prefs.getInt('lastSearchMode') ?? (lastSearchOnline ? 1 : 0);
