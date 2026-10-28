@@ -211,6 +211,9 @@ class _BangumiCharactersPageState extends State<BangumiCharactersPage> {
                     Switch(
                       value: _includeCv,
                       activeThumbColor: colors.primary,
+                      activeTrackColor: colors.primary.withValues(alpha: 0.3),
+                      inactiveThumbColor: colors.surface,
+                      inactiveTrackColor: colors.outline,
                       onChanged: _batching
                           ? null
                           : (v) => setState(() => _includeCv = v),

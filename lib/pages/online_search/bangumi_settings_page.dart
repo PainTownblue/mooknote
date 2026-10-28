@@ -400,6 +400,9 @@ class _BangumiSettingsPageState extends State<BangumiSettingsPage> {
           Switch(
             value: enabled,
             activeThumbColor: colors.primary,
+            activeTrackColor: colors.primary.withValues(alpha: 0.3),
+            inactiveThumbColor: colors.surface,
+            inactiveTrackColor: colors.outline,
             onChanged: (v) {
               setState(() {});
               _userPrefs.setBangumiOpenEditorAfterAdd(v);

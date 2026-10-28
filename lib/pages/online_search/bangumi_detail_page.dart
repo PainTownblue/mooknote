@@ -347,12 +347,36 @@ class _BangumiDetailPageState extends State<BangumiDetailPage> {
         created = movie;
     }
 
+    // 同步条目 tag 为本地标签实体（同名跳过）：
+    // 表单写入的 tag 字符串原本不会创建标签实体，标签管理页与表单选择器看不到它们
+    await _syncLocalTags(
+      provider,
+      switch (_target) {
+        'book' => 'book_genre',
+        'game' => 'game_genre',
+        _ => 'movie_genre',
+      },
+      tags,
+    );
+
     if (mounted) {
       setState(() => _localId = id);
       ToastUtil.show(
           context, '已添加到{status}'.trf({'status': _statusLabel(status)}));
     }
     return (id: id, created: created);
+  }
+
+  /// 将条目自带的 tag 同步为本地标签实体（同名跳过）
+  Future<void> _syncLocalTags(
+      AppProvider provider, String type, List<String> names) async {
+    final existing = (await provider.getTags(type))
+        .map((t) => (t['name'] ?? '').toString())
+        .toSet();
+    for (final n in names) {
+      if (n.isEmpty || !existing.add(n)) continue;
+      await provider.addTag(n, type);
+    }
   }
 
   /// 确保条目已入库；未入库时以"想看/想读/想玩"自动加入，返回本地条目 id。
