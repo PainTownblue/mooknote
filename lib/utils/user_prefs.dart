@@ -558,22 +558,31 @@ class UserPrefs {
   Future<bool> setBangumiOpenEditorAfterAdd(bool value) =>
       prefs.setBool('bangumiOpenEditorAfterAdd', value);
 
-  /// Bangumi 人物头像来源记录：personId → 图片 URL。
-  /// 用于人物收藏时判断本地头像是否已来自 Bangumi，避免覆盖选择框重复提示
-  Map<String, String> get bangumiPersonPhotos {
+  /// Bangumi 人物头像来源记录：personId → {url: 图片 URL, path: 当时写入的本地路径}。
+  /// 两项都匹配才认定本地头像仍来自 Bangumi；头像被 TMDB 同步或手动更换后
+  /// 文件路径必然变化，会重新提示覆盖（旧版仅存 URL 的记录自动降级，提示一次后自愈）
+  Map<String, Map<String, String?>> get bangumiPersonPhotos {
     final raw = prefs.getString('bangumiPersonPhotos');
     if (raw == null || raw.isEmpty) return {};
     try {
-      return (jsonDecode(raw) as Map)
-          .map((k, v) => MapEntry(k.toString(), v.toString()));
+      return (jsonDecode(raw) as Map).map((k, v) {
+        if (v is Map) {
+          return MapEntry(k.toString(), {
+            'url': v['url']?.toString(),
+            'path': v['path']?.toString(),
+          });
+        }
+        return MapEntry(k.toString(), {'url': v.toString(), 'path': null});
+      });
     } catch (_) {
       return {};
     }
   }
 
-  Future<void> setBangumiPersonPhoto(String personId, String url) async {
+  Future<void> setBangumiPersonPhoto(
+      String personId, String url, String path) async {
     final m = bangumiPersonPhotos;
-    m[personId] = url;
+    m[personId] = {'url': url, 'path': path};
     await prefs.setString('bangumiPersonPhotos', jsonEncode(m));
   }
 

@@ -259,7 +259,7 @@ Future<Person?> upsertBangumiPerson(
     if (!context.mounted) return null;
     // 记录头像来源，再次收藏时不再提示头像覆盖
     if (photo != null && photoUrl != null) {
-      UserPrefs().setBangumiPersonPhoto(id, photoUrl);
+      UserPrefs().setBangumiPersonPhoto(id, photoUrl, photo);
     }
     final person = Person(
       id: id,
@@ -292,10 +292,18 @@ Future<Person?> upsertBangumiPerson(
         _ => g,
       };
 
+  // 本地头像是否仍为 Bangumi 下载的那张（URL 与本地路径需同时匹配；
+  // 被 TMDB 同步或手动更换后路径必变，会重新提示覆盖）
+  final photoSrc = UserPrefs().bangumiPersonPhotos[target.id];
+  final photoFromBangumi = photoUrl != null &&
+      photoSrc != null &&
+      photoSrc['url'] == photoUrl &&
+      photoSrc['path'] == target.photoPath;
+
   final conflicts = <({String key, String label, String detail})>[
     if (photoUrl != null &&
         (target.photoPath?.isNotEmpty ?? false) &&
-        UserPrefs().bangumiPersonPhotos[target.id] != photoUrl)
+        !photoFromBangumi)
       (
         key: 'photo',
         label: '头像'.tr,
@@ -351,7 +359,7 @@ Future<Person?> upsertBangumiPerson(
     if (downloaded != null) {
       photoPath = downloaded;
       // 覆盖成功，同步记录头像来源
-      UserPrefs().setBangumiPersonPhoto(target.id, photoUrl);
+      UserPrefs().setBangumiPersonPhoto(target.id, photoUrl, downloaded);
     }
   }
 
